@@ -1,0 +1,313 @@
+{
+  "title": "The Hotel That Forgot Tomorrow",
+  "start_room": "new_room",
+  "player_sprite": "sam",
+  "rooms": [
+    {
+      "id": "reception",
+      "name": "office",
+      "map_x": 133,
+      "map_y": 181,
+      "background": "/assets/backgrounds/lucasarts_002.png",
+      "player_start": {
+        "x": 850,
+        "y": 594
+      },
+      "walkable_polygon": [],
+      "hotspots": []
+    }
+  ],
+  "items": [
+    {
+      "id": "pizza",
+      "name": "pizza",
+      "icon": "/assets/items/pizzaslice.png",
+      "description": "slice of pizza"
+    },
+    {
+      "id": "star_lens",
+      "name": "Star Lens",
+      "icon": "/assets/items/star_lens.png",
+      "description": "A precision-ground crystal lens for an observatory telescope."
+    },
+    {
+      "id": "kkeyy",
+      "name": "New Item",
+      "icon": "/assets/items/key1.jpeg",
+      "description": "A curious object."
+    },
+    {
+      "id": "compass",
+      "name": "Brass Compass",
+      "icon": "/assets/items/compass.png",
+      "description": "A brass compass."
+    },
+    {
+      "id": "greasy_room_key",
+      "name": "Greasy Room Key",
+      "description": "Room 104. Judging by the slime, someone had a very messy stay.",
+      "icon": "/assets/items/greasy_room_key.png"
+    },
+    {
+      "id": "discarded_postcard",
+      "name": "Discarded Postcard",
+      "description": "A postcard from 'Lake Doom Resort'. The motto reads: 'At least the lightning misses most of the time.'",
+      "icon": "/assets/items/discarded_postcard.png"
+    },
+    {
+      "id": "new_item",
+      "name": "New Item",
+      "icon": "/assets/items/new_item.png",
+      "description": "A new item"
+    }
+  ],
+  "puzzles": [
+    {
+      "id": "unlock_observatory",
+      "name": "Use New Item on door1",
+      "trigger": "use_item_on_hotspot",
+      "item_id": "kkeyy",
+      "target_id": "door1",
+      "requires_flag": "",
+      "sets_flag": "door_unlocked",
+      "consume_item": true,
+      "success_text": "*Click!* The brass key turns the heavy lock! The observatory door is now unlocked.",
+      "gives_item": "",
+      "cutscene_id": ""
+    },
+    {
+      "id": "repair_telescope",
+      "name": "Restore the Telescope",
+      "trigger": "use_item_on_hotspot",
+      "item_id": "star_lens",
+      "target_id": "ancient_telescope",
+      "requires_flag": "",
+      "sets_flag": "telescope_repaired",
+      "consume_item": true,
+      "success_text": "The crystal lens snaps into the telescope! Through the eyepiece, hidden coordinates glow in the stars: Mystery Solved!"
+    },
+    {
+      "id": "use_compass_on_ancient_telescope",
+      "name": "Use Brass Compass on Brass Telescope",
+      "trigger": "use_item_on_hotspot",
+      "item_id": "compass",
+      "target_id": "ancient_telescope",
+      "requires_flag": "",
+      "sets_flag": "telescope_unlocked",
+      "gives_item": "",
+      "cutscene_id": "",
+      "consume_item": true,
+      "success_text": "The brass compass unlocks the telescope!"
+    },
+    {
+      "id": "use_compass_on_pickup_compass",
+      "name": "Use Brass Compass on Brass Compass",
+      "trigger": "use_item_on_hotspot",
+      "item_id": "compass",
+      "target_id": "pickup_compass",
+      "requires_flag": "",
+      "sets_flag": "telescope_unlocked",
+      "gives_item": "",
+      "cutscene_id": "",
+      "consume_item": true,
+      "success_text": "The brass compass unlocks the telescope!"
+    },
+    {
+      "id": "unlock_ancient_telescope",
+      "name": "Unlock Brass Telescope",
+      "trigger": "use_item_on_hotspot",
+      "item_id": "compass",
+      "target_id": "ancient_telescope",
+      "requires_flag": "",
+      "sets_flag": "telescope_unlocked",
+      "gives_item": "",
+      "cutscene_id": "",
+      "consume_item": true,
+      "success_text": "The brass compass unlocks the telescope!"
+    },
+    {
+      "id": "use_new_item_on_pickup_new_item",
+      "name": "Use New Item on New Item",
+      "trigger": "use_item_on_hotspot",
+      "item_id": "new_item",
+      "target_id": "pickup_new_item",
+      "requires_flag": "",
+      "sets_flag": "pickup_new_item_solved",
+      "gives_item": "",
+      "cutscene_id": "",
+      "consume_item": false,
+      "success_text": "Used New Item on New Item!"
+    }
+  ],
+  "sprites": {
+    "sam": {
+      "id": "sam",
+      "name": "Sam (Freelance Police)",
+      "sheet": "/assets/sprites/sam.png",
+      "frames_dir": "/assets/sprites/sam_frames",
+      "scale": 4,
+      "metadata_file": "/assets/sprites/sam_slicer.json",
+      "anim_roles": {
+        "walk": "walk",
+        "up": "walk_up",
+        "down": "walk_down",
+        "flip_when_left": true,
+        "idle": "__auto__"
+      }
+    },
+    "max": {
+      "id": "max",
+      "name": "Max (Partner)",
+      "sheet": "/assets/sprites/samnmax.png",
+      "frames_dir": "/assets/sprites/samnmax_frames",
+      "scale": 3.5,
+      "metadata_file": "/assets/sprites/max_slicer.json",
+      "anim_roles": {
+        "walk": "walk",
+        "up": "walk_up",
+        "down": "walk_down",
+        "idle": "w",
+        "flip_when_left": true
+      }
+    },
+    "samnmax": {
+      "id": "samnmax",
+      "name": "Sam & Max (Full Sheet)",
+      "sheet": "/assets/sprites/samnmax.png",
+      "frames_dir": "/assets/sprites/samnmax_frames",
+      "scale": 3.5,
+      "metadata_file": "/assets/sprites/samnmax_slicer.json",
+      "anim_roles": {
+        "walk": "sam_portrait_neutral",
+        "up": "sam_idle_down_hands_behind_back",
+        "down": "sam_idle_down_right_v1",
+        "idle": "sam_idle_down_right_v1",
+        "flip_when_left": true
+      }
+    }
+  },
+  "partner_sprite": "max",
+  "partner_dialog_id": "max_banter",
+  "dialogs": [
+    {
+      "id": "max_banter",
+      "name": "Consult Partner Max",
+      "npc_name": "Max",
+      "root_node": "root",
+      "nodes": [
+        {
+          "id": "root",
+          "speaker": "partner",
+          "npc_text": "What's on your mind, Sam? My psychic lagomorph senses are tingling!",
+          "options": [
+            {
+              "text": "What do you make of this creepy hotel reception?",
+              "reply_text": "Zero room service, dubious floor pizza, and a computer with 4 kilobytes of RAM. Five stars!",
+              "next_node": "clues_branch",
+              "requires_flag": "",
+              "sets_flag": "talked_to_max",
+              "gives_item": "",
+              "triggers_cutscene": "",
+              "once": false
+            },
+            {
+              "text": "Should I pick up that slice of pizza on the rug?",
+              "reply_text": "If you don't put it in your inventory within five seconds, I'm eating it, carpet lint and all.",
+              "next_node": "__stay__",
+              "requires_flag": "",
+              "sets_flag": "",
+              "gives_item": "",
+              "triggers_cutscene": "",
+              "once": true
+            },
+            {
+              "text": "Let's get back to poking around.",
+              "reply_text": "After you, Sam!",
+              "next_node": "__exit__",
+              "requires_flag": "",
+              "sets_flag": "",
+              "gives_item": "",
+              "triggers_cutscene": "",
+              "once": false
+            }
+          ]
+        },
+        {
+          "id": "clues_branch",
+          "speaker": "partner",
+          "npc_text": "Seriously though, Sam, somebody locked up the observatory upstairs and hid the telescope lens.",
+          "options": [
+            {
+              "text": "Why would an astronomer hide their own lens?",
+              "reply_text": "Maybe they saw something up there that was looking back at 'em!",
+              "next_node": "root",
+              "requires_flag": "",
+              "sets_flag": "",
+              "gives_item": "",
+              "triggers_cutscene": "",
+              "once": true
+            },
+            {
+              "text": "Enough theories, let's solve this case.",
+              "reply_text": "I brought my commemorative brick just in case!",
+              "next_node": "__exit__",
+              "requires_flag": "",
+              "sets_flag": "",
+              "gives_item": "",
+              "triggers_cutscene": "",
+              "once": false
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "cutscenes": [
+    {
+      "id": "intro_arrival",
+      "name": "Arrival at the Hotel Lobby",
+      "trigger_type": "manual",
+      "trigger_target": "reception",
+      "requires_flag": "",
+      "sets_flag": "intro_seen",
+      "once": true,
+      "steps": [
+        {
+          "type": "fade",
+          "effect": "fade_in",
+          "duration": 0.9
+        },
+        {
+          "type": "say",
+          "actor": "player",
+          "text": "Here we are, Max: The Hotel That Forgot Tomorrow.",
+          "duration": 3.2
+        },
+        {
+          "type": "walk",
+          "actor": "player",
+          "x": 620,
+          "y": 590
+        },
+        {
+          "type": "walk",
+          "actor": "partner",
+          "x": 740,
+          "y": 605
+        },
+        {
+          "type": "say",
+          "actor": "partner",
+          "text": "Wait, Sam! Look on the carpet! Somebody abandoned a perfectly good slice of floor pizza!",
+          "duration": 3.8
+        },
+        {
+          "type": "say",
+          "actor": "player",
+          "text": "Focus, little buddy. We have a mystery to crack.",
+          "duration": 3
+        }
+      ]
+    }
+  ]
+}

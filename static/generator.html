@@ -1,0 +1,2035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AdventureForge — AI Studio & HuggingFace Hub</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #121927;
+      --card-inner: #0b111e;
+      --card-border: #1f2c42;
+      --card-hover: #1c273c;
+      --accent: #6366f1;
+      --accent-hover: #4f46e5;
+      --lucas-gold: #f59e0b;
+      --redmond-cyan: #06b6d4;
+      --ghibli-green: #10b981;
+      --cartoon-purple: #a855f7;
+      --clay-orange: #f97316;
+      --text: #f3f4f6;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --success: #10b981;
+      --danger: #ef4444;
+      --hf-yellow: #ffbf00;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    /* Header */
+    header {
+      background: rgba(18, 25, 39, 0.96);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--card-border);
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .app-title {
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge-chip {
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .chip-gpu {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .chip-gpu::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      background: #10b981;
+      border-radius: 50%;
+      box-shadow: 0 0 6px #10b981;
+    }
+    .chip-disk {
+      background: rgba(99, 102, 241, 0.15);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .btn-hf-modal {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+      color: #000;
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 800;
+      padding: 7px 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s;
+      box-shadow: 0 2px 8px rgba(245, 158, 11, 0.25);
+    }
+    .btn-hf-modal:hover {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+    .btn-nav-editor {
+      background: #1c273c;
+      color: #cbd5e1;
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 7px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--card-border);
+      transition: all 0.15s;
+    }
+    .btn-nav-editor:hover {
+      background: #25334e;
+      color: #fff;
+    }
+
+    /* ACTIVE PIPELINE COCKPIT BAR */
+    .cockpit-bar {
+      background: #0d1424;
+      border-bottom: 1px solid #1f2c42;
+      padding: 9px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 12px;
+    }
+    .cockpit-summary {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .cockpit-label {
+      color: var(--text-dim);
+      font-weight: 700;
+      text-transform: uppercase;
+      font-size: 10px;
+      letter-spacing: 0.5px;
+    }
+    .cockpit-pill {
+      background: #151f33;
+      border: 1px solid #233352;
+      border-radius: 6px;
+      padding: 3px 9px;
+      font-size: 11px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #e2e8f0;
+    }
+    .cockpit-pill.active-base {
+      border-color: #6366f1;
+      background: rgba(99, 102, 241, 0.18);
+      color: #c7d2fe;
+    }
+    .cockpit-pill.active-lora {
+      border-color: #10b981;
+      background: rgba(16, 185, 129, 0.18);
+      color: #6ee7b7;
+    }
+    .cockpit-pill.pure-base {
+      border-color: #475569;
+      background: #1e293b;
+      color: #94a3b8;
+    }
+
+    /* 1-Click Recipes */
+    .recipes-bar {
+      background: #0b101c;
+      border-bottom: 1px solid #192436;
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    .recipe-title {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-right: 4px;
+    }
+    .btn-recipe {
+      background: #151d2f;
+      border: 1px solid #25334c;
+      color: #cbd5e1;
+      border-radius: 20px;
+      padding: 4px 11px;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s;
+    }
+    .btn-recipe:hover {
+      background: #202c46;
+      border-color: #3b82f6;
+      color: #fff;
+      transform: translateY(-1px);
+    }
+    .btn-recipe.active {
+      background: rgba(99, 102, 241, 0.25);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    /* Layout */
+    main {
+      flex: 1;
+      max-width: 1540px;
+      margin: 0 auto;
+      width: 100%;
+      padding: 16px 20px;
+      display: grid;
+      grid-template-columns: 560px 1fr;
+      gap: 18px;
+    }
+    @media (max-width: 1180px) {
+      main { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .section-title {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding-bottom: 6px;
+    }
+
+    /* Cards */
+    .model-card {
+      background: var(--card-inner);
+      border: 1.5px solid var(--card-border);
+      border-radius: 8px;
+      padding: 11px 13px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: all 0.18s;
+      cursor: pointer;
+      position: relative;
+    }
+    .model-card:hover {
+      border-color: #3b82f6;
+      background: #0f1627;
+    }
+    .model-card.active {
+      border-color: var(--accent);
+      background: rgba(99, 102, 241, 0.08);
+      box-shadow: 0 0 12px rgba(99, 102, 241, 0.15);
+    }
+    .model-card.active.lucas {
+      border-color: var(--lucas-gold);
+      background: rgba(245, 158, 11, 0.08);
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.15);
+    }
+    .model-card.active.redmond {
+      border-color: var(--redmond-cyan);
+      background: rgba(6, 182, 212, 0.08);
+      box-shadow: 0 0 12px rgba(6, 182, 212, 0.15);
+    }
+    .model-card.active.ghibli {
+      border-color: var(--ghibli-green);
+      background: rgba(16, 185, 129, 0.08);
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.15);
+    }
+    .model-card.active.cartoon {
+      border-color: var(--cartoon-purple);
+      background: rgba(168, 85, 247, 0.08);
+      box-shadow: 0 0 12px rgba(168, 85, 247, 0.15);
+    }
+
+    .model-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .model-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .model-title input[type="radio"], .model-title input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .model-badge-status {
+      font-size: 10px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: #1e293b;
+      color: var(--text-dim);
+      letter-spacing: 0.3px;
+    }
+    .model-card.active .model-badge-status {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .model-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-left: 28px;
+      line-height: 1.4;
+    }
+    .model-meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-left: 28px;
+      font-size: 10px;
+      color: var(--text-dim);
+      padding-top: 2px;
+    }
+    .slider-box {
+      margin-left: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-top: 8px;
+      border-top: 1px dashed rgba(255, 255, 255, 0.08);
+      margin-top: 4px;
+    }
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .slider-row input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .slider-val {
+      font-size: 12px;
+      font-weight: 800;
+      width: 38px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: #fff;
+    }
+    .quick-weights {
+      display: flex;
+      gap: 6px;
+    }
+    .btn-qw {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #cbd5e1;
+      font-size: 10px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.15s;
+    }
+    .btn-qw:hover {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    /* Trigger Tag Grid */
+    .tag-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .tag-pill {
+      background: var(--card-inner);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 5px 9px;
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s;
+    }
+    .tag-pill:hover {
+      border-color: var(--accent);
+      color: #fff;
+      background: #151d2f;
+    }
+    .tag-pill.active {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: var(--accent);
+      color: #fff;
+      font-weight: 700;
+    }
+    .tag-pill input {
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    /* Inputs */
+    textarea, input[type="text"], input[type="number"], select {
+      background: var(--card-inner);
+      border: 1px solid var(--card-border);
+      color: #fff;
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 13px;
+      outline: none;
+      font-family: inherit;
+      width: 100%;
+    }
+    textarea:focus, input[type="text"]:focus, select:focus {
+      border-color: var(--accent);
+    }
+    textarea {
+      min-height: 72px;
+      resize: vertical;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .btn-generate {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 15px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn-generate:hover:not(:disabled) {
+      filter: brightness(1.1);
+      transform: translateY(-1px);
+    }
+    .btn-generate:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* Telemetry Box */
+    .telemetry-card {
+      background: #080c16;
+      border: 1px solid #1c273c;
+      border-left: 3px solid var(--accent);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 11px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      line-height: 1.4;
+    }
+    .telemetry-header {
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .telemetry-code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: #38bdf8;
+      word-break: break-all;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 5px 8px;
+      border-radius: 4px;
+      font-size: 10.5px;
+    }
+
+    /* Canvas / Preview */
+    .canvas-card {
+      background: var(--card-inner);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      min-height: 520px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      padding: 16px;
+    }
+    .canvas-card img {
+      max-width: 100%;
+      max-height: 540px;
+      object-fit: contain;
+      border-radius: 6px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+      image-rendering: pixelated;
+    }
+    .spinner {
+      width: 44px;
+      height: 44px;
+      border: 4px solid rgba(99, 102, 241, 0.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .actions-bar {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      margin-top: 10px;
+    }
+    .btn-action {
+      flex: 1;
+      background: #1c273c;
+      color: #fff;
+      border: 1px solid var(--card-border);
+      padding: 9px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+    .btn-action:hover {
+      background: #25334e;
+      border-color: var(--accent);
+    }
+    .history-strip {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding: 4px 2px;
+    }
+    .history-thumb {
+      width: 72px;
+      height: 72px;
+      border-radius: 6px;
+      border: 2px solid transparent;
+      cursor: pointer;
+      object-fit: cover;
+      transition: all 0.15s;
+      flex-shrink: 0;
+      image-rendering: pixelated;
+    }
+    .history-thumb:hover {
+      border-color: var(--accent);
+      transform: scale(1.04);
+    }
+
+    /* MODAL: HUGGING FACE HUB */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(6px);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal {
+      background: #131b2c;
+      border: 1px solid #283754;
+      border-radius: 14px;
+      max-width: 840px;
+      width: 100%;
+      max-height: 88vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.7);
+      overflow: hidden;
+    }
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #202d46;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #162035;
+    }
+    .modal-tabs {
+      display: flex;
+      border-bottom: 1px solid #202d46;
+      background: #0f1626;
+      padding: 0 16px;
+    }
+    .modal-tab-btn {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 700;
+      padding: 12px 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      transition: all 0.15s;
+    }
+    .modal-tab-btn:hover {
+      color: #fff;
+    }
+    .modal-tab-btn.active {
+      color: #fff;
+      border-bottom-color: var(--hf-yellow);
+    }
+    .modal-body {
+      padding: 20px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .btn-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 22px;
+      cursor: pointer;
+    }
+    .btn-close:hover { color: #fff; }
+
+    /* Curated & Search Items */
+    .hf-item-card {
+      background: #0b111e;
+      border: 1px solid #1f2c42;
+      border-radius: 8px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      transition: all 0.15s;
+    }
+    .hf-item-card:hover {
+      border-color: #3b82f6;
+      background: #0e1628;
+    }
+    .hf-item-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
+    .hf-item-title {
+      font-size: 13px;
+      font-weight: 800;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .hf-item-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+    .hf-item-meta {
+      font-size: 10px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .btn-install-hf {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 14px;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-install-hf:hover:not(:disabled) {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+    .btn-install-hf:disabled {
+      background: #25334e;
+      color: var(--text-dim);
+      cursor: not-allowed;
+    }
+    .btn-installed-badge {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+  </style>
+</head>
+<body>
+  <!-- HEADER -->
+  <header>
+    <div class="header-left">
+      <div class="app-title">
+        <span>🎨 AdventureForge AI Studio</span>
+      </div>
+      <div class="badge-chip chip-gpu">Jetson Orin Nano (CUDA0 Ready)</div>
+      <div class="badge-chip chip-disk" id="diskBadge">💾 Checking Disk...</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn-hf-modal" onclick="openHfModal()">
+        <span>🤗 Download More Hugging Face Models</span>
+      </button>
+      <a href="/" class="btn-nav-editor">🏰 World Editor</a>
+    </div>
+  </header>
+
+  <!-- ACTIVE PIPELINE COCKPIT BAR: Live visual indication of what is active -->
+  <div class="cockpit-bar">
+    <div class="cockpit-summary">
+      <span class="cockpit-label">Current Pipeline:</span>
+      <div class="cockpit-pill active-base" id="cockpitBase">Base: SD 1.5 Q8_0</div>
+      <div class="cockpit-pill pure-base" id="cockpitLoras">LoRAs: None (Pure Base)</div>
+      <div class="cockpit-pill" id="cockpitTags" style="display:none;">Tags: None</div>
+      <div class="cockpit-pill" id="cockpitQuantizer">Quantizer: OFF</div>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:12px;">
+      <span id="cockpitSpeed" style="color:var(--success);font-weight:700;">⚡ Est. ~21s on Jetson GPU</span>
+    </div>
+  </div>
+
+  <!-- 1-CLICK QUICK RECIPES -->
+  <div class="recipes-bar">
+    <span class="recipe-title">⚡ Quick Recipes:</span>
+    <button class="btn-recipe" onclick="applyRecipe('lucasarts')">🌟 1993 LucasArts Adventure</button>
+    <button class="btn-recipe" onclick="applyRecipe('pixelart')">👾 16-Bit Retro PixelArt</button>
+    <button class="btn-recipe" onclick="applyRecipe('duo')">🎭 LucasArts + PixelArt Duo</button>
+    <button class="btn-recipe" onclick="applyRecipe('ghibli')">🍃 Studio Ghibli Anime</button>
+    <button class="btn-recipe" onclick="applyRecipe('storybook')">📖 StoryBook Hand-Drawn</button>
+    <button class="btn-recipe" onclick="applyRecipe('purebase')">⚡ Pure Raw Base (Zero LoRA)</button>
+    <button class="btn-recipe" onclick="applyRecipe('sakura')">🌸 Sakura DiT 3B Anime</button>
+  </div>
+
+  <main>
+    <!-- Left Column: Controls & Dynamic Checkboxes -->
+    <div class="panel">
+      <!-- 1. BASE MODEL (Radio Cards) -->
+      <div class="section-title">
+        <span>1. Base Model Checkpoint</span>
+        <span style="font-size:10px;color:var(--text-muted);">Pick exactly one base model</span>
+      </div>
+      <div id="baseModelsContainer" style="display:flex;flex-direction:column;gap:6px;">
+        <!-- Dynamically rendered from /api/models/installed -->
+      </div>
+
+      <!-- 2. LORAS (Checkboxes & Sliders) -->
+      <div class="section-title">
+        <span>2. LoRA Style Add-ons (Checkboxes)</span>
+        <button class="btn-qw" onclick="openHfModal()">+ Download More LoRAs</button>
+      </div>
+      <div style="font-size:11px;color:var(--text-dim);margin-top:-6px;line-height:1.4;">
+        ⚠️ <b>Zero LoRAs are applied until you check a box.</b> When checked, weights stack dynamically in VRAM.
+      </div>
+      <div id="lorasContainer" style="display:flex;flex-direction:column;gap:6px;">
+        <!-- Dynamically rendered from /api/models/installed -->
+      </div>
+
+      <!-- 3. STYLE TRIGGER TAGS CHECKBOXES -->
+      <div class="section-title">
+        <span>3. Style Trigger Tags</span>
+        <span style="font-size:10px;color:var(--text-muted);">Click to inject into prompt</span>
+      </div>
+      <div class="tag-grid" id="tagGrid">
+        <label class="tag-pill" id="pillTag1"><input type="checkbox" id="tag1" value="lucasarts_retro_style" onchange="updatePromptTags()" /> 🌟 lucasarts_retro_style</label>
+        <label class="tag-pill" id="pillTag2"><input type="checkbox" id="tag2" value="pixel art" onchange="updatePromptTags()" /> 👾 pixel art</label>
+        <label class="tag-pill" id="pillTag3"><input type="checkbox" id="tag3" value="Pixel Art, PixArFK" onchange="updatePromptTags()" /> 🎯 Pixel Art, PixArFK</label>
+        <label class="tag-pill" id="pillTag4"><input type="checkbox" id="tag4" value="Studio Ghibli, StdGBRedmAF" onchange="updatePromptTags()" /> 🍃 Studio Ghibli, StdGBRedmAF</label>
+        <label class="tag-pill" id="pillTag5"><input type="checkbox" id="tag5" value="256-color VGA palette" onchange="updatePromptTags()" /> 🎨 256-color VGA palette</label>
+        <label class="tag-pill" id="pillTag6"><input type="checkbox" id="tag6" value="wacky cartoon perspective, skewed angles" onchange="updatePromptTags()" /> 📐 wacky cartoon angles</label>
+        <label class="tag-pill" id="pillTag7"><input type="checkbox" id="tag7" value="point-and-click adventure game scene" onchange="updatePromptTags()" /> 🕹️ adventure game scene</label>
+      </div>
+
+      <!-- 4. SCENE PROMPT -->
+      <div class="section-title">
+        <span>4. Scene Prompt</span>
+        <span style="font-size:10px;color:var(--text-muted);">Describe what you want to see</span>
+      </div>
+      <textarea id="promptInput" oninput="updateTelemetry()" placeholder="Describe the room, scene, or character...">chaotic detective office with a cluttered desk, CRT computer monitor, dartboard on back wall, and large arched windows overlooking city</textarea>
+
+      <!-- 5. NEGATIVE FILTER CHECKBOX -->
+      <div class="section-title">
+        <span>5. Anti-Artifact Negative Filter</span>
+      </div>
+      <div class="model-card active" id="cardNegFilter" style="cursor:default;">
+        <div class="model-card-header">
+          <label class="model-title" style="cursor:pointer;">
+            <input type="checkbox" id="chkNegFilter" checked onchange="onNegFilterToggle()" />
+            <span>🚫 Apply Anti-Artifact Negative Filter</span>
+          </label>
+          <span class="model-badge-status" id="valNegBadge" style="color:var(--success);">ACTIVE</span>
+        </div>
+        <div id="boxNegInput" style="margin-top:6px;">
+          <input type="text" id="negInput" value="blurry, photograph, 3d render, realistic, smooth gradient, vector" oninput="updateTelemetry()" />
+        </div>
+      </div>
+
+      <!-- 6. INFERENCE SETTINGS -->
+      <div class="section-title">6. Sampler & Resolution</div>
+      <div class="grid-2">
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Sampler</label>
+          <select id="samplerSelect" onchange="updateTelemetry()">
+            <option value="euler_a">Euler A (Fast & Stylized)</option>
+            <option value="dpm++2m">DPM++ 2M (Detailed)</option>
+            <option value="euler">Euler</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Resolution</label>
+          <select id="resSelect" onchange="updateTelemetry()">
+            <option value="512x512">512 × 512 (Standard 1:1)</option>
+            <option value="640x384">640 × 384 (16:9 Adventure Room)</option>
+            <option value="384x512">384 × 512 (Portrait)</option>
+            <option value="256x256">256 × 256 (Small Icon / Sprite)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-top:4px;">
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span>Steps</span><b id="stepsVal" style="color:var(--accent);">20</b>
+          </label>
+          <input type="range" id="stepsInput" min="10" max="30" step="1" value="20" oninput="document.getElementById('stepsVal').innerText=this.value; updateTelemetry();" />
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span>CFG Scale</span><b id="cfgVal" style="color:var(--accent);">7.0</b>
+          </label>
+          <input type="range" id="cfgInput" min="1.0" max="14.0" step="0.5" value="7.0" oninput="document.getElementById('cfgVal').innerText=parseFloat(this.value).toFixed(1); updateTelemetry();" />
+        </div>
+      </div>
+
+      <!-- Seed Randomize -->
+      <div class="model-card" style="cursor:default;">
+        <div class="model-card-header">
+          <label class="model-title" style="cursor:pointer;">
+            <input type="checkbox" id="chkRandomSeed" checked onchange="document.getElementById('boxSeedInput').style.display=this.checked?'none':'block'; updateTelemetry();" />
+            <span>🎲 Randomize Seed Every Generation</span>
+          </label>
+        </div>
+        <div id="boxSeedInput" style="display:none;margin-top:6px;">
+          <input type="number" id="seedVal" placeholder="Enter fixed seed integer..." value="42" oninput="updateTelemetry()" />
+        </div>
+      </div>
+
+      <!-- 7. POST-PROCESSING & ROOM WORKFLOW -->
+      <div class="section-title">7. Post-Processing & Game Target</div>
+      <div class="grid-2">
+        <label class="tag-pill" style="padding:9px 11px;justify-content:flex-start;">
+          <input type="checkbox" id="chkPixelize" onchange="updateTelemetry()" />
+          <span>👾 16-Bit SCUMM VGA (320x200)</span>
+        </label>
+        <label class="tag-pill" style="padding:9px 11px;justify-content:flex-start;">
+          <input type="checkbox" id="chkRembg" onchange="updateTelemetry()" />
+          <span>✂️ Transparent PNG (rembg)</span>
+        </label>
+      </div>
+
+      <div class="grid-2" style="margin-top:4px;">
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Asset Category</label>
+          <select id="catSelect">
+            <option value="backgrounds">Backgrounds</option>
+            <option value="items">Items / Pickups</option>
+            <option value="sprites">Sprites / Characters</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Assign to Room</label>
+          <select id="roomSelect">
+            <option value="">-- Don't Assign --</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- TELEMETRY INSPECTOR: "WHAT WILL ACTUALLY RUN" -->
+      <div class="telemetry-card" id="telemetryCard">
+        <div class="telemetry-header">
+          <span>🔍 What Will Actually Run On GPU</span>
+          <span id="telemetrySpeed" style="color:var(--success);">~21s on CUDA0</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);" id="telemetryBase">Base: SD 1.5</div>
+        <div style="font-size:11px;color:var(--text-muted);" id="telemetryLoras">LoRAs: None (Pure Raw Base)</div>
+        <div class="telemetry-code" id="telemetryPrompt">Prompt string...</div>
+      </div>
+
+      <!-- BIG GENERATE BUTTON -->
+      <button id="btnGenerate" class="btn-generate" onclick="generateImage()">
+        <span>🚀 GENERATE ON JETSON GPU</span>
+      </button>
+    </div>
+
+    <!-- Right Column: Live View & History -->
+    <div class="panel">
+      <div class="section-title">
+        <span>Generated Output Preview</span>
+        <span id="timerBadge" style="font-size:12px;font-weight:700;color:var(--text-muted);">Ready</span>
+      </div>
+
+      <div class="canvas-card" id="canvasCard">
+        <div id="emptyState" style="display:flex;flex-direction:column;align-items:center;gap:12px;color:var(--text-muted);font-size:14px;">
+          <div style="font-size:54px;">🖼️</div>
+          <div style="font-weight:700;color:#fff;font-size:16px;">Ready to generate!</div>
+          <div style="font-size:12px;color:#64748b;text-align:center;max-width:380px;">Select your base model and any LoRAs above, customize the prompt, then click <b>Generate</b>.</div>
+        </div>
+        <div id="loadingState" style="display:none;flex-direction:column;align-items:center;gap:12px;">
+          <div class="spinner"></div>
+          <div style="font-weight:800;color:#fff;font-size:16px;">Running on Jetson Orin Nano...</div>
+          <div id="loadingTimer" style="font-size:13px;color:var(--accent);font-weight:700;">0.0s elapsed</div>
+        </div>
+        <img id="resultImage" style="display:none;" />
+      </div>
+
+      <div id="metaBar" style="display:none;display:flex;flex-wrap:wrap;gap:8px;font-size:11px;margin-top:8px;"></div>
+
+      <div class="actions-bar" id="actionsBar" style="display:none;">
+        <a id="btnDownload" class="btn-action" download="adventure_asset.png">💾 Download PNG</a>
+        <button class="btn-action" onclick="copyImageUrl()">📋 Copy URL</button>
+        <button class="btn-action" onclick="assignToSelectedRoom()">🏰 Set as Room Background</button>
+      </div>
+
+      <!-- History Reel -->
+      <div style="margin-top:16px;">
+        <div class="section-title">Session History</div>
+        <div class="history-strip" id="historyStrip"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL: HUGGING FACE MODEL HUB -->
+  <div class="modal-backdrop" id="hfModalBackdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <div>
+          <h2 style="font-size:16px;font-weight:800;color:#fff;display:flex;align-items:center;gap:8px;">
+            <span>🤗 Hugging Face Model & LoRA Hub</span>
+          </h2>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px;" id="modalDiskInfo">Available Storage: 29.0 GB Free</div>
+        </div>
+        <button class="btn-close" onclick="closeHfModal()">✕</button>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="modal-tabs">
+        <button class="modal-tab-btn active" id="tabBtnCurated" onclick="switchModalTab('curated')">🌟 Recommended Models</button>
+        <button class="modal-tab-btn" id="tabBtnSearch" onclick="switchModalTab('search')">🔍 Live HF Search</button>
+        <button class="modal-tab-btn" id="tabBtnCustom" onclick="switchModalTab('custom')">🔗 Custom URL / Repo</button>
+        <button class="modal-tab-btn" id="tabBtnManager" onclick="switchModalTab('manager')">💾 Installed Storage</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- TAB 1: CURATED RECOMMENDED MODELS -->
+        <div id="tabViewCurated" style="display:flex;flex-direction:column;gap:10px;">
+          <div style="font-size:12px;font-weight:700;color:#cbd5e1;">Tested & Verified Models for Jetson Orin Nano:</div>
+          <div id="curatedList" style="display:flex;flex-direction:column;gap:8px;">
+            <!-- Dynamically rendered -->
+          </div>
+        </div>
+
+        <!-- TAB 2: LIVE HUGGING FACE SEARCH -->
+        <div id="tabViewSearch" style="display:none;flex-direction:column;gap:12px;">
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="hfSearchInput" placeholder="Search Hugging Face (e.g. pixel art, retro anime, isometric, cartoon)..." onkeydown="if(event.key==='Enter') executeHfSearch()" />
+            <button class="btn-install-hf" onclick="executeHfSearch()">Search</button>
+          </div>
+          <!-- Quick query suggestions -->
+          <div style="display:flex;gap:6px;flex-wrap:wrap;font-size:11px;">
+            <span style="color:var(--text-dim);line-height:22px;">Try:</span>
+            <button class="btn-qw" onclick="searchTagQuery('pixel art lora')">👾 pixel art</button>
+            <button class="btn-qw" onclick="searchTagQuery('retro anime lora')">📺 retro anime</button>
+            <button class="btn-qw" onclick="searchTagQuery('isometric lora')">🏰 isometric</button>
+            <button class="btn-qw" onclick="searchTagQuery('storybook lora')">📖 storybook</button>
+            <button class="btn-qw" onclick="searchTagQuery('stable-diffusion-v1-5-GGUF')">⚡ SD 1.5 GGUF</button>
+          </div>
+          <div id="searchResultsList" style="display:flex;flex-direction:column;gap:8px;max-height:420px;overflow-y:auto;">
+            <div style="font-size:12px;color:var(--text-dim);text-align:center;padding:30px;">Type a keyword above or click a suggestion to search Hugging Face Hub</div>
+          </div>
+        </div>
+
+        <!-- TAB 3: CUSTOM URL / REPO -->
+        <div id="tabViewCustom" style="display:none;flex-direction:column;gap:12px;">
+          <div style="font-size:12px;color:var(--text-muted);">Download any community SD 1.5 LoRA (.safetensors) or Base Checkpoint (.gguf):</div>
+          <div class="grid-2">
+            <div>
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Target Type</label>
+              <select id="customType">
+                <option value="lora">LoRA (.safetensors) → /data/models/loras/</option>
+                <option value="base_model">Base Checkpoint (.gguf) → /data/models/sd15/</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Download Method</label>
+              <select id="customSource" onchange="toggleCustomSource(this.value)">
+                <option value="hf">Hugging Face Repo ID + Filename</option>
+                <option value="url">Direct HTTP/HTTPS File URL</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="boxHfFields">
+            <div class="grid-2">
+              <div>
+                <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">HF Repo ID (e.g. username/repo)</label>
+                <input type="text" id="customRepoId" placeholder="e.g. artificialguybr/StoryBookRedmond" />
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">File Name in Repo</label>
+                <input type="text" id="customFilename" placeholder="e.g. StoryBookRedmond-KidsRedmAF.safetensors" />
+              </div>
+            </div>
+          </div>
+
+          <div id="boxUrlField" style="display:none;">
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Direct File URL (.safetensors or .gguf)</label>
+            <input type="text" id="customUrl" placeholder="https://huggingface.co/.../model.safetensors" />
+          </div>
+
+          <button id="btnCustomDownload" class="btn-generate" style="padding:11px;font-size:13px;" onclick="downloadCustom()">
+            <span>⬇ Download & Install to Jetson NVMe</span>
+          </button>
+        </div>
+
+        <!-- TAB 4: INSTALLED MODELS MANAGER -->
+        <div id="tabViewManager" style="display:none;flex-direction:column;gap:12px;">
+          <div style="font-size:12px;font-weight:700;color:#cbd5e1;">Locally Installed Files on Jetson NVMe:</div>
+          <div id="installedManagerList" style="display:flex;flex-direction:column;gap:8px;"></div>
+        </div>
+
+        <div id="downloadStatus" style="font-size:12px;text-align:center;color:var(--accent);display:none;padding:8px;background:rgba(99,102,241,0.1);border-radius:6px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let timerInterval = null;
+    let startTime = 0;
+    let currentAssetUrl = "";
+    let historyList = [];
+    let installedData = { base_models: [], loras: [] };
+
+    // Curated catalog definition
+    const CURATED_MODELS = [
+      {
+        id: "ghibli",
+        name: "🍃 Studio Ghibli Anime Adventure",
+        repo: "artificialguybr/studioghibli-redmond-1-5v-studio-ghibli-lora-for-liberteredmond-sd-1-5",
+        filename: "StudioGhibliRedmond-15V-LiberteRedmond-StdGBRedmAF-StudioGhibli.safetensors",
+        size: "36 MB",
+        type: "lora",
+        desc: "Lush painted anime landscapes, fluffy clouds, and warm Miyazaki colors. Trigger: Studio Ghibli, StdGBRedmAF"
+      },
+      {
+        id: "cartoon",
+        name: "📺 90s Cute Cartoon Adventure",
+        repo: "artificialguybr/cutecartoon-redmond-1-5v-cute-cartoon-lora-for-liberteredmond-sd-1-5",
+        filename: "CuteCartoon15V-LiberteRedmodModel-Cartoon-CuteCartoonAF.safetensors",
+        size: "26 MB",
+        type: "lora",
+        desc: "Classic 90s animated cartoon style with vibrant outlines and retro comic charm. Trigger: Cartoon, CuteCartoonAF"
+      },
+      {
+        id: "clay",
+        name: "🗿 Clay Animation (The Neverhood)",
+        repo: "artificialguybr/clayanimationredmond-1-5-version-clay-animation-lora-for-sd-1-5",
+        filename: "ClayAnimationRedmond15-ClayAnimation-Clay.safetensors",
+        size: "26 MB",
+        type: "lora",
+        desc: "Handcrafted plasticine clay stop-motion textures. Trigger: Clay Animation, Clay"
+      },
+      {
+        id: "retrocgi",
+        name: "🕹️ Retro 90s 3D CGI (Myst / Donkey Kong)",
+        repo: "MagiMas/retrocgi_sd15_lora",
+        filename: "retrocgi_sd15_v1.safetensors",
+        size: "144 MB",
+        type: "lora",
+        desc: "Early 90s pre-rendered SGI workstation 3D graphics and nostalgic CD-ROM CGI textures. Trigger: retrocgi style"
+      },
+      {
+        id: "storybook",
+        name: "📖 StoryBook Hand-Drawn Adventure",
+        repo: "artificialguybr/storybookredmond-1-5-version-storybook-kids-lora-style-for-sd-1-5",
+        filename: "StoryBookRedmond15-KidsRedmAF-KidsBook.safetensors",
+        size: "26 MB",
+        type: "lora",
+        desc: "Hand-illustrated fantasy storybook art with storybook warmth. Trigger: StoryBook, KidsRedmAF"
+      },
+      {
+        id: "stickers",
+        name: "🏷️ Game Item & Sticker Icons",
+        repo: "artificialguybr/stickers-redmond-1-5-version-stickers-lora-for-sd-1-5",
+        filename: "StickersRedmond15Version-Stickers-Sticker.safetensors",
+        size: "26 MB",
+        type: "lora",
+        desc: "Crisp item pickups, sticker sprites, and game inventory icons. Trigger: Stickers, Sticker"
+      },
+      {
+        id: "sd15_q4",
+        name: "⚡ SD 1.5 Q4_0 Ultra-Fast Base (GGUF)",
+        repo: "second-state/stable-diffusion-v1-5-GGUF",
+        filename: "stable-diffusion-v1-5-pruned-emaonly-Q4_0.gguf",
+        size: "900 MB",
+        type: "base_model",
+        desc: "Super-fast 4-bit quantized base model. Generates in just ~13 seconds on Jetson CUDA0!"
+      }
+    ];
+
+    window.addEventListener("DOMContentLoaded", async () => {
+      await loadInstalledModels();
+      await loadProjectRooms();
+      renderCuratedList();
+      updateTelemetry();
+    });
+
+    async function loadInstalledModels() {
+      try {
+        const res = await fetch("/api/models/installed");
+        if (res.ok) {
+          installedData = await res.json();
+          renderBaseModels(installedData.base_models);
+          renderLoras(installedData.loras);
+          renderManagerList(installedData);
+          renderCuratedList();
+          const diskBadge = document.getElementById("diskBadge");
+          diskBadge.innerText = `💾 ${installedData.free_disk_gb} GB Free NVMe`;
+          document.getElementById("modalDiskInfo").innerText = `Available Storage: ${installedData.free_disk_gb} GB of ${installedData.total_disk_gb} GB`;
+        }
+      } catch (e) {
+        console.error("Error loading models:", e);
+      }
+    }
+
+    async function loadProjectRooms() {
+      try {
+        const res = await fetch("/api/project");
+        if (res.ok) {
+          const proj = await res.json();
+          const sel = document.getElementById("roomSelect");
+          (proj.rooms || []).forEach(r => {
+            const opt = document.createElement("option");
+            opt.value = r.id;
+            opt.textContent = `${r.name} (${r.id})`;
+            sel.appendChild(opt);
+          });
+        }
+      } catch (e) {}
+    }
+
+    // 1. RENDER BASE MODELS
+    function renderBaseModels(models) {
+      const c = document.getElementById("baseModelsContainer");
+      c.innerHTML = "";
+      models.forEach((m, idx) => {
+        const isDefault = idx === 0;
+        const div = document.createElement("div");
+        div.className = "model-card" + (isDefault ? " active" : "");
+        div.id = `cardBase_${m.id}`;
+        div.onclick = () => selectBaseModel(m.id);
+
+        div.innerHTML = `
+          <div class="model-card-header">
+            <label class="model-title" onclick="event.stopPropagation()">
+              <input type="radio" name="base_model" id="radio_${m.id}" value="${m.filename}" data-engine="${m.engine}" ${isDefault ? 'checked' : ''} onchange="selectBaseModel('${m.id}')" />
+              <span>${m.display_name}</span>
+            </label>
+            <span class="model-badge-status">${m.size_mb} MB</span>
+          </div>
+          <div class="model-desc">${m.description}</div>
+          <div class="model-meta-row">
+            <span>Engine: <b>${m.engine.toUpperCase()}</b> • Speed: <b>${m.speed_estimate}</b></span>
+            <span>${m.lora_compatible ? '✅ LoRA Compatible' : '⚠️ LoRAs Disabled (DiT)'}</span>
+          </div>
+        `;
+        c.appendChild(div);
+      });
+    }
+
+    // 2. RENDER LORAS
+    function renderLoras(loras) {
+      const c = document.getElementById("lorasContainer");
+      c.innerHTML = "";
+      loras.forEach(l => {
+        const div = document.createElement("div");
+        const fnLow = l.filename.toLowerCase();
+        let colorClass = "";
+        let defaultWeight = 0.85;
+
+        if (fnLow.includes("lucas")) {
+          colorClass = "lucas";
+          defaultWeight = 0.85;
+        } else if (fnLow.includes("pixel")) {
+          colorClass = "redmond";
+          defaultWeight = 0.75;
+        } else if (fnLow.includes("ghibli")) {
+          colorClass = "ghibli";
+          defaultWeight = 0.80;
+        } else if (fnLow.includes("cartoon")) {
+          colorClass = "cartoon";
+          defaultWeight = 0.80;
+        }
+
+        div.className = "model-card";
+        div.id = `cardLora_${l.id}`;
+
+        div.innerHTML = `
+          <div class="model-card-header">
+            <label class="model-title" onclick="event.stopPropagation()">
+              <input type="checkbox" id="chkLora_${l.id}" data-filename="${l.filename}" onchange="onLoraToggleDynamic('${l.id}', '${colorClass}')" />
+              <span>${l.display_name}</span>
+            </label>
+            <div style="display:flex;align-items:center;gap:6px;">
+              ${l.trigger_hint ? `<button class="btn-qw" onclick="event.stopPropagation(); appendTag('${l.trigger_hint}')">+ Add Tag</button>` : ''}
+              <span class="model-badge-status" id="badgeLora_${l.id}">OFF</span>
+            </div>
+          </div>
+          <div class="model-desc">${l.description || l.filename}</div>
+          <div class="model-meta-row">
+            <span>${l.size_mb} MB • ${l.filename}</span>
+            ${!l.is_protected ? `<button class="btn-qw" style="color:var(--danger);" onclick="event.stopPropagation(); deleteModelFile('${l.filename}', 'lora')">🗑️ Remove</button>` : ''}
+          </div>
+          <div class="slider-box" id="boxSlider_${l.id}" style="display:none;" onclick="event.stopPropagation()">
+            <div class="slider-row">
+              <span style="font-size:11px;color:var(--text-muted);width:46px;">Weight:</span>
+              <input type="range" id="sliderLora_${l.id}" min="0.1" max="1.5" step="0.05" value="${defaultWeight}" oninput="onLoraWeightDynamic('${l.id}')" />
+              <span class="slider-val" id="numLora_${l.id}">${defaultWeight.toFixed(2)}</span>
+            </div>
+            <div class="quick-weights">
+              <span style="font-size:10px;color:var(--text-dim);line-height:18px;">Quick:</span>
+              <button class="btn-qw" onclick="setQuickWeight('${l.id}', 0.5)">Subtle (0.5)</button>
+              <button class="btn-qw" onclick="setQuickWeight('${l.id}', 0.8)">Balanced (0.8)</button>
+              <button class="btn-qw" onclick="setQuickWeight('${l.id}', 1.1)">Strong (1.1)</button>
+            </div>
+          </div>
+        `;
+        c.appendChild(div);
+      });
+    }
+
+    function selectBaseModel(id) {
+      document.querySelectorAll("#baseModelsContainer .model-card").forEach(el => el.classList.remove("active"));
+      const targetCard = document.getElementById(`cardBase_${id}`);
+      if (targetCard) targetCard.classList.add("active");
+      const radio = document.getElementById(`radio_${id}`);
+      if (radio) radio.checked = true;
+
+      const engine = radio.getAttribute("data-engine");
+      const isSd15 = engine === "sd15";
+
+      document.querySelectorAll("#lorasContainer input[type='checkbox']").forEach(chk => {
+        chk.disabled = !isSd15;
+        if (!isSd15 && chk.checked) {
+          chk.checked = false;
+          const loraId = chk.id.replace("chkLora_", "");
+          onLoraToggleDynamic(loraId, "");
+        }
+      });
+      updateTelemetry();
+    }
+
+    function onLoraToggleDynamic(id, colorClass) {
+      const chk = document.getElementById(`chkLora_${id}`);
+      const card = document.getElementById(`cardLora_${id}`);
+      const box = document.getElementById(`boxSlider_${id}`);
+      const badge = document.getElementById(`badgeLora_${id}`);
+      const slider = document.getElementById(`sliderLora_${id}`);
+
+      if (chk.checked) {
+        card.classList.add("active");
+        if (colorClass) card.classList.add(colorClass);
+        box.style.display = "flex";
+        badge.innerText = `ACTIVE (${parseFloat(slider.value).toFixed(2)})`;
+        badge.style.color = "var(--success)";
+      } else {
+        card.classList.remove("active", "lucas", "redmond", "ghibli", "cartoon");
+        box.style.display = "none";
+        badge.innerText = "OFF";
+        badge.style.color = "var(--text-dim)";
+      }
+      updateTelemetry();
+    }
+
+    function onLoraWeightDynamic(id) {
+      const slider = document.getElementById(`sliderLora_${id}`);
+      const num = document.getElementById(`numLora_${id}`);
+      const badge = document.getElementById(`badgeLora_${id}`);
+      const val = parseFloat(slider.value).toFixed(2);
+      num.innerText = val;
+      badge.innerText = `ACTIVE (${val})`;
+      updateTelemetry();
+    }
+
+    function setQuickWeight(id, val) {
+      const slider = document.getElementById(`sliderLora_${id}`);
+      if (slider) {
+        slider.value = val;
+        onLoraWeightDynamic(id);
+      }
+    }
+
+    function appendTag(tag) {
+      const area = document.getElementById("promptInput");
+      if (!area.value.includes(tag)) {
+        area.value = area.value.trim() ? `${tag}, ${area.value.trim()}` : tag;
+        updateTelemetry();
+      }
+    }
+
+    function updatePromptTags() {
+      for (let i = 1; i <= 7; i++) {
+        const el = document.getElementById(`tag${i}`);
+        if (el) el.closest(".tag-pill").classList.toggle("active", el.checked);
+      }
+      updateTelemetry();
+    }
+
+    function onNegFilterToggle() {
+      const chk = document.getElementById("chkNegFilter");
+      const card = document.getElementById("cardNegFilter");
+      const box = document.getElementById("boxNegInput");
+      const badge = document.getElementById("valNegBadge");
+
+      card.classList.toggle("active", chk.checked);
+      box.style.display = chk.checked ? "block" : "none";
+      badge.innerText = chk.checked ? "ACTIVE" : "OFF";
+      badge.style.color = chk.checked ? "var(--success)" : "var(--danger)";
+      updateTelemetry();
+    }
+
+    // 1-CLICK QUICK RECIPES
+    function applyRecipe(key) {
+      // Uncheck all LoRAs first
+      document.querySelectorAll("#lorasContainer input[type='checkbox']").forEach(chk => {
+        chk.checked = false;
+        const loraId = chk.id.replace("chkLora_", "");
+        onLoraToggleDynamic(loraId, "");
+      });
+
+      // Clear tag checkboxes
+      for (let i = 1; i <= 7; i++) {
+        const el = document.getElementById(`tag${i}`);
+        if (el) el.checked = false;
+      }
+
+      if (key === "lucasarts") {
+        // SD 1.5 + LucasArts 0.85 + SCUMM VGA
+        const radio = document.querySelector("input[data-engine='sd15']");
+        if (radio) selectBaseModel(radio.id.replace("radio_", ""));
+        const chkLucas = document.querySelector("#lorasContainer input[data-filename*='lucasarts']");
+        if (chkLucas) {
+          chkLucas.checked = true;
+          const loraId = chkLucas.id.replace("chkLora_", "");
+          setQuickWeight(loraId, 0.85);
+          onLoraToggleDynamic(loraId, "lucas");
+        }
+        document.getElementById("tag1").checked = true; // lucasarts_retro_style
+        document.getElementById("tag2").checked = true; // pixel art
+        document.getElementById("tag6").checked = true; // wacky cartoon angles
+        document.getElementById("chkPixelize").checked = true;
+        document.getElementById("promptInput").value = "chaotic detective office with a cluttered desk, CRT computer monitor, dartboard on back wall, and large arched windows overlooking city";
+      } else if (key === "pixelart") {
+        const radio = document.querySelector("input[data-engine='sd15']");
+        if (radio) selectBaseModel(radio.id.replace("radio_", ""));
+        const chkPixel = document.querySelector("#lorasContainer input[data-filename*='PixelArt']");
+        if (chkPixel) {
+          chkPixel.checked = true;
+          const loraId = chkPixel.id.replace("chkLora_", "");
+          setQuickWeight(loraId, 0.75);
+          onLoraToggleDynamic(loraId, "redmond");
+        }
+        document.getElementById("tag2").checked = true; // pixel art
+        document.getElementById("tag3").checked = true; // Pixel Art, PixArFK
+        document.getElementById("tag5").checked = true; // 256-color VGA palette
+        document.getElementById("chkPixelize").checked = true;
+        document.getElementById("promptInput").value = "retro cyberpunk alleyway with neon noodle stand and rain puddles reflecting holographic signs";
+      } else if (key === "duo") {
+        const radio = document.querySelector("input[data-engine='sd15']");
+        if (radio) selectBaseModel(radio.id.replace("radio_", ""));
+        const chkLucas = document.querySelector("#lorasContainer input[data-filename*='lucasarts']");
+        if (chkLucas) {
+          chkLucas.checked = true;
+          const loraId = chkLucas.id.replace("chkLora_", "");
+          setQuickWeight(loraId, 0.70);
+          onLoraToggleDynamic(loraId, "lucas");
+        }
+        const chkPixel = document.querySelector("#lorasContainer input[data-filename*='PixelArt']");
+        if (chkPixel) {
+          chkPixel.checked = true;
+          const loraId = chkPixel.id.replace("chkLora_", "");
+          setQuickWeight(loraId, 0.50);
+          onLoraToggleDynamic(loraId, "redmond");
+        }
+        document.getElementById("tag1").checked = true;
+        document.getElementById("tag2").checked = true;
+        document.getElementById("tag5").checked = true;
+        document.getElementById("chkPixelize").checked = true;
+        document.getElementById("promptInput").value = "mad scientist laboratory with bubbling green test tubes, Tesla coils, and chalk formulas on blackboard";
+      } else if (key === "ghibli") {
+        const radio = document.querySelector("input[data-engine='sd15']");
+        if (radio) selectBaseModel(radio.id.replace("radio_", ""));
+        const chkGhibli = document.querySelector("#lorasContainer input[data-filename*='Ghibli']");
+        if (chkGhibli) {
+          chkGhibli.checked = true;
+          const loraId = chkGhibli.id.replace("chkLora_", "");
+          setQuickWeight(loraId, 0.80);
+          onLoraToggleDynamic(loraId, "ghibli");
+        }
+        document.getElementById("tag4").checked = true; // Studio Ghibli
+        document.getElementById("chkPixelize").checked = false; // keep lush high-res
+        document.getElementById("promptInput").value = "magical apothecary shop on a hillside overlooking the ocean, warm morning sunlight streaming through windows with hanging dried herbs";
+      } else if (key === "storybook") {
+        const radio = document.querySelector("input[data-engine='sd15']");
+        if (radio) selectBaseModel(radio.id.replace("radio_", ""));
+        const chkSb = document.querySelector("#lorasContainer input[data-filename*='StoryBook']");
+        if (chkSb) {
+          chkSb.checked = true;
+          const loraId = chkSb.id.replace("chkLora_", "");
+          setQuickWeight(loraId, 0.85);
+          onLoraToggleDynamic(loraId, "cartoon");
+        }
+        document.getElementById("chkPixelize").checked = false;
+        document.getElementById("promptInput").value = "StoryBook, KidsRedmAF, whimsical treehouse village in an enchanted glowing forest with rope bridges and lantern fireflies";
+      } else if (key === "purebase") {
+        const radio = document.querySelector("input[data-engine='sd15']");
+        if (radio) selectBaseModel(radio.id.replace("radio_", ""));
+        document.getElementById("chkPixelize").checked = false;
+        document.getElementById("promptInput").value = "beautiful medieval tavern with glowing fireplace, wooden tavern tables, and lantern light, highly detailed";
+      } else if (key === "sakura") {
+        const radio = document.querySelector("input[data-engine='iris']");
+        if (radio) selectBaseModel(radio.id.replace("radio_", ""));
+        document.getElementById("chkPixelize").checked = false;
+        document.getElementById("promptInput").value = "masterpiece, anime girl wizard studying glowing magical grimoire in an ancient library";
+      }
+      updatePromptTags();
+      updateTelemetry();
+    }
+
+    // TELEMETRY & COCKPIT UPDATE
+    function updateTelemetry() {
+      const activeRadio = document.querySelector("input[name='base_model']:checked");
+      const engine = activeRadio ? activeRadio.getAttribute("data-engine") : "sd15";
+      const baseFilename = activeRadio ? activeRadio.value : "sd-v1-5-pruned-emaonly-Q8_0.gguf";
+
+      // Base Model Pill
+      const cBase = document.getElementById("cockpitBase");
+      cBase.innerText = `Base: ${baseFilename.split('-')[0]} (${engine.toUpperCase()})`;
+      document.getElementById("telemetryBase").innerText = `Base Model: ${baseFilename} (${engine.toUpperCase()})`;
+
+      const speedText = engine === "sd15" ? "~21s on CUDA0" : "~6m (DiT 3B)";
+      document.getElementById("telemetrySpeed").innerText = speedText;
+      document.getElementById("cockpitSpeed").innerText = `⚡ Est. ${speedText}`;
+
+      // LoRA Pills
+      const activeLoras = [];
+      const loraBadges = [];
+      document.querySelectorAll("#lorasContainer input[type='checkbox']:checked").forEach(chk => {
+        const loraId = chk.id.replace("chkLora_", "");
+        const filename = chk.getAttribute("data-filename");
+        const sld = document.getElementById(`sliderLora_${loraId}`);
+        const w = sld ? parseFloat(sld.value).toFixed(2) : "1.00";
+        activeLoras.push(`<lora:${filename.replace('.safetensors', '')}:${w}>`);
+        
+        let shortName = filename.split('.')[0].replace('Redmond', '').replace('_retro_style', '');
+        if (shortName.length > 15) shortName = shortName.substring(0, 15) + '...';
+        loraBadges.push(`${shortName} (${w}x)`);
+      });
+
+      const cLoras = document.getElementById("cockpitLoras");
+      if (loraBadges.length > 0) {
+        cLoras.className = "cockpit-pill active-lora";
+        cLoras.innerText = `LoRAs: ${loraBadges.join(" + ")}`;
+        document.getElementById("telemetryLoras").innerText = `LoRAs: ${activeLoras.join(", ")}`;
+      } else {
+        cLoras.className = "cockpit-pill pure-base";
+        cLoras.innerText = "LoRAs: None (Pure Base)";
+        document.getElementById("telemetryLoras").innerText = "LoRAs: None (Pure Raw Base)";
+      }
+
+      // Quantizer Pill
+      const chkPx = document.getElementById("chkPixelize").checked;
+      const cQuant = document.getElementById("cockpitQuantizer");
+      cQuant.innerText = chkPx ? "Quantizer: 👾 16-Bit SCUMM VGA" : "Quantizer: OFF";
+      cQuant.style.color = chkPx ? "var(--success)" : "var(--text-muted)";
+
+      // Build simulated prompt string
+      let prompt = document.getElementById("promptInput").value.trim();
+      const tags = [];
+      for (let i = 1; i <= 7; i++) {
+        const el = document.getElementById(`tag${i}`);
+        if (el && el.checked) tags.push(el.value);
+      }
+      if (tags.length > 0) prompt = tags.join(", ") + ", " + prompt;
+      if (activeLoras.length > 0) prompt += ", " + activeLoras.join(", ");
+
+      document.getElementById("telemetryPrompt").innerText = prompt || "(Empty Prompt)";
+    }
+
+    // GENERATE IMAGE
+    async function generateImage() {
+      const btn = document.getElementById("btnGenerate");
+      const emptyState = document.getElementById("emptyState");
+      const loadingState = document.getElementById("loadingState");
+      const resultImg = document.getElementById("resultImage");
+      const metaBar = document.getElementById("metaBar");
+      const actionsBar = document.getElementById("actionsBar");
+      const timerBadge = document.getElementById("timerBadge");
+      const loadingTimer = document.getElementById("loadingTimer");
+
+      let prompt = document.getElementById("promptInput").value.trim();
+      if (!prompt) {
+        alert("Please enter a scene prompt!");
+        return;
+      }
+
+      const tags = [];
+      for (let i = 1; i <= 7; i++) {
+        const el = document.getElementById(`tag${i}`);
+        if (el && el.checked) tags.push(el.value);
+      }
+      if (tags.length > 0) prompt = tags.join(", ") + ", " + prompt;
+
+      const activeRadio = document.querySelector("input[name='base_model']:checked");
+      const engine = activeRadio ? activeRadio.getAttribute("data-engine") : "sd15";
+      const baseFilename = activeRadio ? activeRadio.value : "";
+
+      const lorasPayload = {};
+      document.querySelectorAll("#lorasContainer input[type='checkbox']:checked").forEach(chk => {
+        const loraId = chk.id.replace("chkLora_", "");
+        const filename = chk.getAttribute("data-filename");
+        const sld = document.getElementById(`sliderLora_${loraId}`);
+        lorasPayload[filename] = sld ? parseFloat(sld.value) : 1.0;
+      });
+
+      const chkNeg = document.getElementById("chkNegFilter").checked;
+      const negPrompt = chkNeg ? document.getElementById("negInput").value.trim() : "";
+
+      const chkRandom = document.getElementById("chkRandomSeed").checked;
+      const seed = chkRandom ? -1 : parseInt(document.getElementById("seedVal").value || "-1");
+
+      const [w, h] = document.getElementById("resSelect").value.split("x").map(Number);
+      const steps = parseInt(document.getElementById("stepsInput").value);
+      const cfg = parseFloat(document.getElementById("cfgInput").value);
+      const sampler = document.getElementById("samplerSelect").value;
+      const category = document.getElementById("catSelect").value;
+      const pixelize = document.getElementById("chkPixelize").checked;
+      const rembg = document.getElementById("chkRembg").checked;
+      const targetRoom = document.getElementById("roomSelect").value;
+
+      btn.disabled = true;
+      emptyState.style.display = "none";
+      resultImg.style.display = "none";
+      loadingState.style.display = "flex";
+      metaBar.style.display = "none";
+      actionsBar.style.display = "none";
+
+      startTime = performance.now();
+      timerInterval = setInterval(() => {
+        const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
+        loadingTimer.innerText = `${elapsed}s elapsed`;
+        timerBadge.innerText = `⏳ ${elapsed}s`;
+      }, 100);
+
+      try {
+        const payload = {
+          prompt: prompt,
+          negative_prompt: negPrompt,
+          category: category,
+          width: w,
+          height: h,
+          steps: steps,
+          cfg_scale: cfg,
+          sampling_method: sampler,
+          model_engine: engine,
+          base_model_file: baseFilename,
+          active_loras: lorasPayload,
+          seed: seed,
+          pixel_art: pixelize,
+          auto_remove_bg: rembg,
+          link_to_room_id: targetRoom
+        };
+
+        const res = await fetch("/api/media/jetson-generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        clearInterval(timerInterval);
+
+        if (!res.ok || data.error) {
+          alert("Generation failed: " + (data.error || "Unknown server error"));
+          loadingState.style.display = "none";
+          emptyState.style.display = "flex";
+          btn.disabled = false;
+          return;
+        }
+
+        const totalTime = ((performance.now() - startTime) / 1000).toFixed(1);
+        timerBadge.innerText = `✅ Completed in ${totalTime}s`;
+
+        currentAssetUrl = data.asset_url;
+        resultImg.src = data.asset_url + "?t=" + Date.now();
+        resultImg.style.display = "block";
+        loadingState.style.display = "none";
+
+        document.getElementById("btnDownload").href = data.asset_url;
+
+        metaBar.innerHTML = `
+          <div style="background:#1e293b;padding:4px 8px;border-radius:4px;border:1px solid var(--card-border);">⚡ ${totalTime}s</div>
+          <div style="background:#1e293b;padding:4px 8px;border-radius:4px;border:1px solid var(--card-border);">📐 ${w}×${h}</div>
+          <div style="background:#1e293b;padding:4px 8px;border-radius:4px;border:1px solid var(--card-border);">🔄 ${steps} steps (${sampler})</div>
+          <div style="background:#1e293b;padding:4px 8px;border-radius:4px;border:1px solid var(--card-border);">Base: ${baseFilename.split('-')[0]}</div>
+          ${pixelize ? `<div style="background:#1e293b;padding:4px 8px;border-radius:4px;border:1px solid var(--card-border);color:var(--success);">👾 16-Bit SCUMM VGA</div>` : ''}
+        `;
+        metaBar.style.display = "flex";
+        actionsBar.style.display = "flex";
+
+        addToHistory({ url: data.asset_url, prompt: prompt });
+
+      } catch (err) {
+        clearInterval(timerInterval);
+        alert("Error connecting to server: " + err.message);
+        loadingState.style.display = "none";
+        emptyState.style.display = "flex";
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function addToHistory(item) {
+      historyList.unshift(item);
+      const strip = document.getElementById("historyStrip");
+      strip.innerHTML = "";
+      historyList.slice(0, 10).forEach(h => {
+        const img = document.createElement("img");
+        img.src = h.url;
+        img.className = "history-thumb";
+        img.title = h.prompt;
+        img.onclick = () => {
+          document.getElementById("resultImage").src = h.url;
+          document.getElementById("btnDownload").href = h.url;
+          currentAssetUrl = h.url;
+        };
+        strip.appendChild(img);
+      });
+    }
+
+    function copyImageUrl() {
+      if (currentAssetUrl) {
+        const full = window.location.origin + currentAssetUrl;
+        navigator.clipboard.writeText(full);
+        alert("Copied asset URL to clipboard:\n" + full);
+      }
+    }
+
+    async function assignToSelectedRoom() {
+      const roomSelect = document.getElementById("roomSelect");
+      const roomId = roomSelect.value;
+      if (!roomId) {
+        alert("Please select a target room in the dropdown first!");
+        return;
+      }
+      try {
+        const res = await fetch("/api/project");
+        const proj = await res.json();
+        const r = (proj.rooms || []).find(room => room.id === roomId);
+        if (r) {
+          r.background = currentAssetUrl;
+          await fetch("/api/project", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(proj)
+          });
+          alert(`Success! Set ${r.name} background to ${currentAssetUrl}`);
+        }
+      } catch (e) {
+        alert("Error saving room background: " + e.message);
+      }
+    }
+
+    // MODAL LOGIC & TABS
+    function openHfModal() {
+      document.getElementById("hfModalBackdrop").style.display = "flex";
+      renderCuratedList();
+    }
+
+    function closeHfModal() {
+      document.getElementById("hfModalBackdrop").style.display = "none";
+      document.getElementById("downloadStatus").style.display = "none";
+    }
+
+    function switchModalTab(tabId) {
+      document.querySelectorAll(".modal-tab-btn").forEach(b => b.classList.remove("active"));
+      document.getElementById("tabViewCurated").style.display = "none";
+      document.getElementById("tabViewSearch").style.display = "none";
+      document.getElementById("tabViewCustom").style.display = "none";
+      document.getElementById("tabViewManager").style.display = "none";
+
+      if (tabId === "curated") {
+        document.getElementById("tabBtnCurated").classList.add("active");
+        document.getElementById("tabViewCurated").style.display = "flex";
+      } else if (tabId === "search") {
+        document.getElementById("tabBtnSearch").classList.add("active");
+        document.getElementById("tabViewSearch").style.display = "flex";
+      } else if (tabId === "custom") {
+        document.getElementById("tabBtnCustom").classList.add("active");
+        document.getElementById("tabViewCustom").style.display = "flex";
+      } else if (tabId === "manager") {
+        document.getElementById("tabBtnManager").classList.add("active");
+        document.getElementById("tabViewManager").style.display = "flex";
+        renderManagerList(installedData);
+      }
+    }
+
+    function renderCuratedList() {
+      const c = document.getElementById("curatedList");
+      if (!c) return;
+      c.innerHTML = "";
+
+      CURATED_MODELS.forEach(m => {
+        const isInstalled = (m.type === "lora")
+          ? installedData.loras.some(l => l.filename === m.filename)
+          : installedData.base_models.some(b => b.filename === m.filename);
+
+        const card = document.createElement("div");
+        card.className = "hf-item-card";
+        card.innerHTML = `
+          <div class="hf-item-info">
+            <div class="hf-item-title">
+              <span>${m.name}</span>
+              <span class="model-badge-status">${m.size}</span>
+            </div>
+            <div class="hf-item-desc">${m.desc}</div>
+            <div class="hf-item-meta">
+              <span>Repo: <code>${m.repo}</code></span>
+              <span>Type: <b>${m.type.toUpperCase()}</b></span>
+            </div>
+          </div>
+          <div>
+            ${isInstalled 
+              ? `<div class="btn-installed-badge">✅ Installed</div>` 
+              : `<button class="btn-install-hf" id="btnCur_${m.id}" onclick="downloadCurated('${m.id}')">⬇ 1-Click Install</button>`
+            }
+          </div>
+        `;
+        c.appendChild(card);
+      });
+    }
+
+    async function downloadCurated(id) {
+      const item = CURATED_MODELS.find(m => m.id === id);
+      if (!item) return;
+      const btn = document.getElementById(`btnCur_${id}`);
+      if (btn) {
+        btn.disabled = true;
+        btn.innerText = "⏳ Downloading...";
+      }
+      await executeDownload({ type: item.type, repo_id: item.repo, filename: item.filename }, btn, "⬇ 1-Click Install");
+      renderCuratedList();
+    }
+
+    // SEARCH TAB
+    function searchTagQuery(q) {
+      document.getElementById("hfSearchInput").value = q;
+      executeHfSearch();
+    }
+
+    async function executeHfSearch() {
+      const q = document.getElementById("hfSearchInput").value.trim();
+      if (!q) return;
+      const list = document.getElementById("searchResultsList");
+      list.innerHTML = `<div style="text-align:center;padding:24px;color:var(--accent);">⏳ Searching Hugging Face Hub for "${q}"...</div>`;
+
+      try {
+        const res = await fetch(`/api/models/search-hf?q=${encodeURIComponent(q)}`);
+        const data = await res.json();
+        list.innerHTML = "";
+
+        if (!data.results || data.results.length === 0) {
+          list.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text-dim);">No models found for "${q}". Try another keyword!</div>`;
+          return;
+        }
+
+        data.results.forEach((r, idx) => {
+          const card = document.createElement("div");
+          card.className = "hf-item-card";
+          const firstFile = r.files[0] || "";
+          const isInstalled = (r.type === "lora")
+            ? installedData.loras.some(l => l.filename === firstFile)
+            : installedData.base_models.some(b => b.filename === firstFile);
+
+          card.innerHTML = `
+            <div class="hf-item-info">
+              <div class="hf-item-title">
+                <span>${r.repo_id}</span>
+                <span class="model-badge-status">${r.type.toUpperCase()}</span>
+              </div>
+              <div class="hf-item-desc">Found file: <code>${firstFile}</code></div>
+              <div class="hf-item-meta">
+                <span>❤️ ${r.likes || 0} Likes</span>
+                <span>⬇️ ${r.downloads || 0} Downloads</span>
+                ${r.files.length > 1 ? `<span>(${r.files.length} model files in repo)</span>` : ''}
+              </div>
+            </div>
+            <div>
+              ${isInstalled 
+                ? `<div class="btn-installed-badge">✅ Installed</div>` 
+                : `<button class="btn-install-hf" id="btnSearchDl_${idx}" onclick="downloadSearchResult('${r.type}', '${r.repo_id}', '${firstFile}', 'btnSearchDl_${idx}')">⬇ Install</button>`
+              }
+            </div>
+          `;
+          list.appendChild(card);
+        });
+      } catch (err) {
+        list.innerHTML = `<div style="text-align:center;padding:24px;color:var(--danger);">Search error: ${err.message}</div>`;
+      }
+    }
+
+    async function downloadSearchResult(type, repo, filename, btnId) {
+      const btn = document.getElementById(btnId);
+      if (btn) {
+        btn.disabled = true;
+        btn.innerText = "⏳ Downloading...";
+      }
+      await executeDownload({ type: type, repo_id: repo, filename: filename }, btn, "⬇ Install");
+    }
+
+    // CUSTOM TAB
+    function toggleCustomSource(val) {
+      document.getElementById("boxHfFields").style.display = val === "hf" ? "block" : "none";
+      document.getElementById("boxUrlField").style.display = val === "url" ? "block" : "none";
+    }
+
+    async function downloadCustom() {
+      const btn = document.getElementById("btnCustomDownload");
+      const type = document.getElementById("customType").value;
+      const source = document.getElementById("customSource").value;
+      let payload = { type: type };
+
+      if (source === "hf") {
+        const repo = document.getElementById("customRepoId").value.trim();
+        const file = document.getElementById("customFilename").value.trim();
+        if (!repo || !file) {
+          alert("Please enter both Hugging Face Repo ID and Filename!");
+          return;
+        }
+        payload.repo_id = repo;
+        payload.filename = file;
+      } else {
+        const url = document.getElementById("customUrl").value.trim();
+        if (!url) {
+          alert("Please enter a direct download URL!");
+          return;
+        }
+        payload.url = url;
+      }
+
+      btn.disabled = true;
+      btn.innerText = "⏳ Downloading from Hugging Face...";
+      await executeDownload(payload, btn, "⬇ Download & Install to Jetson NVMe");
+    }
+
+    // INSTALLED MANAGER TAB
+    function renderManagerList(data) {
+      const c = document.getElementById("installedManagerList");
+      if (!c) return;
+      c.innerHTML = "";
+
+      // Base models
+      data.base_models.forEach(b => {
+        const card = document.createElement("div");
+        card.className = "hf-item-card";
+        card.innerHTML = `
+          <div class="hf-item-info">
+            <div class="hf-item-title">
+              <span>${b.display_name}</span>
+              <span class="model-badge-status">${b.size_mb} MB</span>
+            </div>
+            <div class="hf-item-desc">Base Checkpoint (.gguf) • Engine: ${b.engine.toUpperCase()}</div>
+          </div>
+          <div>
+            ${b.is_protected 
+              ? `<span style="font-size:11px;color:var(--text-dim);">Protected Core</span>`
+              : `<button class="btn-qw" style="color:var(--danger);" onclick="deleteModelFile('${b.filename}', 'base_model')">🗑️ Delete</button>`
+            }
+          </div>
+        `;
+        c.appendChild(card);
+      });
+
+      // LoRAs
+      data.loras.forEach(l => {
+        const card = document.createElement("div");
+        card.className = "hf-item-card";
+        card.innerHTML = `
+          <div class="hf-item-info">
+            <div class="hf-item-title">
+              <span>${l.display_name}</span>
+              <span class="model-badge-status">${l.size_mb} MB</span>
+            </div>
+            <div class="hf-item-desc">${l.filename}</div>
+          </div>
+          <div>
+            ${l.is_protected 
+              ? `<span style="font-size:11px;color:var(--text-dim);">Protected Core</span>`
+              : `<button class="btn-qw" style="color:var(--danger);" onclick="deleteModelFile('${l.filename}', 'lora')">🗑️ Delete</button>`
+            }
+          </div>
+        `;
+        c.appendChild(card);
+      });
+    }
+
+    async function deleteModelFile(filename, type) {
+      if (!confirm(`Are you sure you want to delete ${filename} from NVMe storage?`)) return;
+      try {
+        const res = await fetch(`/api/models/delete?filename=${encodeURIComponent(filename)}&type=${type}`, {
+          method: "DELETE"
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert(data.message);
+          await loadInstalledModels();
+          updateTelemetry();
+        } else {
+          alert("Delete failed: " + (data.detail || data.error));
+        }
+      } catch (e) {
+        alert("Delete connection error: " + e.message);
+      }
+    }
+
+    // CORE DOWNLOAD EXECUTOR
+    async function executeDownload(payload, btnEl, originalBtnText) {
+      const statusDiv = document.getElementById("downloadStatus");
+      statusDiv.style.display = "block";
+      statusDiv.style.color = "var(--accent)";
+      statusDiv.innerText = "⏳ Fetching from Hugging Face & installing on NVMe... Please wait.";
+
+      try {
+        const res = await fetch("/api/models/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) {
+          alert("Download failed: " + (data.detail || data.error || "Unknown error"));
+          statusDiv.innerText = "❌ Download failed.";
+          statusDiv.style.color = "var(--danger)";
+        } else {
+          statusDiv.innerText = `🎉 ${data.message} (${data.size_mb} MB)`;
+          statusDiv.style.color = "var(--success)";
+          await loadInstalledModels();
+          updateTelemetry();
+        }
+      } catch (err) {
+        alert("Download connection error: " + err.message);
+        statusDiv.innerText = "❌ Connection error.";
+        statusDiv.style.color = "var(--danger)";
+      } finally {
+        if (btnEl) {
+          btnEl.disabled = false;
+          btnEl.innerText = originalBtnText;
+        }
+      }
+    }
+  </script>
+</body>
+</html>
