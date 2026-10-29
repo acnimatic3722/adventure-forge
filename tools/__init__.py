@@ -101,6 +101,8 @@ from .vlm import (
     create_coordinate_grid_overlay,
     vlm_auto_detect_and_place_props,
     vlm_generate_and_place_items,
+    vlm_describe_hotspot,
+    vlm_inspect_room_scene,
 )
 
 # Collect all tools for MCP server
@@ -172,6 +174,8 @@ TOOLS_LIST = [
     create_coordinate_grid_overlay,
     vlm_auto_detect_and_place_props,
     vlm_generate_and_place_items,
+    vlm_describe_hotspot,
+    vlm_inspect_room_scene,
 ]
 
 TOOLS_BY_NAME = {fn.__name__: fn for fn in TOOLS_LIST}

@@ -21,32 +21,45 @@ from tools import (
     get_full_project,
     set_project_title,
     list_rooms,
+    get_room,
     create_or_update_room,
     delete_room,
+    update_room_map_position,
+    set_room_walkable_polygon,
+    set_start_room,
     list_hotspots,
+    get_hotspot,
     create_or_update_hotspot,
     delete_hotspot,
+    link_door,
+    set_hotspot_lock,
     list_items,
+    get_item,
     create_or_update_item,
     delete_item,
     link_item_usage,
     list_puzzles,
+    get_puzzle,
     create_or_update_puzzle,
     delete_puzzle,
     list_dialog_trees,
+    get_dialog_tree,
     create_or_update_dialog_tree,
+    delete_dialog_tree,
     add_or_update_dialog_node,
     add_dialog_player_choice,
     list_cutscenes,
+    get_cutscene,
     create_or_update_cutscene,
     add_cutscene_step,
     list_sprites,
+    get_sprite,
     list_assets,
     TOOLS_LIST,
     TOOLS_BY_NAME,
 )
 from tools.project import launch_pygame_game, stop_pygame_game
-from agent_tools import _load_proj, _save_proj, PROJECT_FILE
+from tools._core import _load_proj, _save_proj, PROJECT_FILE
 
 
 # ============================================================================
@@ -527,7 +540,10 @@ class TestCutscenes:
 
         result = get_cutscene("cs1")
         assert "cutscene" in result
-        assert len(result["cutscene"]["steps"]) == 2
+        steps = result["cutscene"]["steps"]
+        # create_or_update_cutscene seeds 2 default steps, plus the 2 added above
+        assert len(steps) == 4
+        assert steps[-1]["text"] == "Line 2"
 
 
 # ============================================================================
@@ -612,7 +628,7 @@ class TestPygameProcess:
         assert result["pid"] == 12345
         assert "test_room" in str(result)
 
-    @patch("tools.project.PYGAME_PROC", new_callable=lambda: MagicMock())
+    @patch("tools._core.PYGAME_PROC", new_callable=lambda: MagicMock())
     def test_stop_pygame_game(self, mock_proc, sample_project):
         """Test stopping pygame game."""
         mock_proc.poll.return_value = None

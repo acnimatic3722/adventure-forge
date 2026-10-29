@@ -13,50 +13,21 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image
 from google import genai
-from google.genai import types
 
 from config import config
-from agent_tools import (
+from ._core import (
     _load_proj,
     _save_proj,
-    _resolve_asset,
-    load_env,
-    ASSETS_DIR,
-    DATA_DIR,
-    BASE_DIR,
-    PYGAME_PROC,
+    _get_api_keys,
     LOCAL_SD15_GGUF,
-    LOCAL_SD15_GGUF_Q4,
     LOCAL_REDMOND_LORA,
     LOCAL_LUCASARTS_LORA,
     LOCAL_IRIS_GGUF,
     LOCAL_IRIS_TE,
 )
-from tools.assets import remove_asset_background, pixelize_asset
-
-
-def _get_api_keys() -> dict[str, str]:
-    """Retrieve API keys from .env with fallback paths."""
-    load_env()
-    for env_path in [
-        BASE_DIR / ".env",
-        BASE_DIR.parent / ".env",
-        Path("/home/x/Desktop/IDEAS/.env")
-    ]:
-        if env_path.exists():
-            load_env(str(env_path))
-    return {
-        "gemini": os.getenv("GEMINI_API_KEY", "").strip(),
-        "serp": os.getenv("SERP_API_KEY", "").strip(),
-        "freesound": os.getenv("FREESOUND_API_KEY", "").strip(),
-        "hf": os.getenv("HF_TOKEN", "").strip(),
-        "nvidia": os.getenv("NVIDIA_API_KEY", "").strip(),
-        "prime": os.getenv("PRIME_API_KEY", "").strip(),
-        "spritefusion": os.getenv("SPRITE_FUSION_API_KEY", "").strip() or os.getenv("SPRITEFUSION_API_KEY", "").strip(),
-    }
+from .assets import remove_asset_background, pixelize_asset
 
 
 def list_available_media_apis() -> dict[str, Any]:
@@ -96,7 +67,7 @@ def search_and_download_sound_effects(
         return {"error": "Search query cannot be empty"}
 
     cat_name = "music" if category.lower() in ("music", "bgm", "ambient") else "sounds"
-    cat_dir = ASSETS_DIR / cat_name
+    cat_dir = config.ASSETS_DIR / cat_name
     cat_dir.mkdir(parents=True, exist_ok=True)
 
     params = urllib.parse.urlencode({
@@ -193,7 +164,7 @@ def search_and_download_images(
 
     valid_cats = {"items", "backgrounds", "sprites"}
     target_cat = category if category in valid_cats else "items"
-    cat_dir = ASSETS_DIR / target_cat
+    cat_dir = config.ASSETS_DIR / target_cat
     cat_dir.mkdir(parents=True, exist_ok=True)
 
     search_q = query.strip()
@@ -436,7 +407,7 @@ def spritefusion_generate_pixel_art(
 
     valid_cats = {"items", "backgrounds", "sprites"}
     target_cat = category if category in valid_cats else "items"
-    cat_dir = ASSETS_DIR / target_cat
+    cat_dir = config.ASSETS_DIR / target_cat
     cat_dir.mkdir(parents=True, exist_ok=True)
 
     if not filename:
@@ -611,7 +582,7 @@ def jetson_generate_image(
 
     valid_cats = {"items", "backgrounds", "sprites"}
     target_cat = category if category in valid_cats else "items"
-    cat_dir = ASSETS_DIR / target_cat
+    cat_dir = config.ASSETS_DIR / target_cat
     cat_dir.mkdir(parents=True, exist_ok=True)
 
     if not filename:
@@ -634,8 +605,6 @@ def jetson_generate_image(
 
     # Only apply LoRAs if explicitly requested by user (weight > 0.0)
     lora_tags = []
-    loras_dir = config.JETSON_LORAS_DIR
-
     if active_loras and isinstance(active_loras, dict):
         for lname, lweight in active_loras.items():
             try:
@@ -814,7 +783,7 @@ def generate_image_ai(
     keys = _get_api_keys()
     valid_cats = {"items", "backgrounds", "sprites"}
     target_cat = category if category in valid_cats else "items"
-    cat_dir = ASSETS_DIR / target_cat
+    cat_dir = config.ASSETS_DIR / target_cat
     cat_dir.mkdir(parents=True, exist_ok=True)
 
     if not filename:
@@ -946,7 +915,7 @@ def download_asset_from_url(
     if not url.strip():
         return {"error": "URL cannot be empty"}
     target_cat = category if category in ("items", "backgrounds", "sprites", "sounds", "music") else "items"
-    cat_dir = ASSETS_DIR / target_cat
+    cat_dir = config.ASSETS_DIR / target_cat
     cat_dir.mkdir(parents=True, exist_ok=True)
 
     if not filename:

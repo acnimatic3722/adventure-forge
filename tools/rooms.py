@@ -2,8 +2,7 @@
 AdventureForge — Rooms & World Map MCP Tools
 """
 from typing import Any
-from config import config
-from agent_tools import (
+from ._core import (
     _load_proj,
     _save_proj,
 )

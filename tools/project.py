@@ -3,10 +3,10 @@ AdventureForge — Project & Engine MCP Tools
 """
 from typing import Any
 from config import config
-from agent_tools import (
+from . import _core
+from ._core import (
     _load_proj,
     _save_proj,
-    PYGAME_PROC,
 )
 import sys
 import os
@@ -89,13 +89,12 @@ def set_character_roles(player_sprite: str = "", partner_sprite: str = "") -> di
 
 def launch_pygame_game(room_id: str = "", cutscene_id: str = "", dialog_id: str = "") -> dict[str, Any]:
     """Launch the Pygame engine runtime to playtest the game (optionally starting at a specific room, cutscene, or dialog)."""
-    global PYGAME_PROC
-    if PYGAME_PROC and PYGAME_PROC.poll() is None:
-        PYGAME_PROC.terminate()
+    if _core.PYGAME_PROC and _core.PYGAME_PROC.poll() is None:
+        _core.PYGAME_PROC.terminate()
         try:
-            PYGAME_PROC.wait(timeout=2)
+            _core.PYGAME_PROC.wait(timeout=2)
         except Exception:
-            PYGAME_PROC.kill()
+            _core.PYGAME_PROC.kill()
 
     cmd = [sys.executable, str(config.BASE_DIR / "engine_pygame.py")]
     if room_id:
@@ -111,20 +110,19 @@ def launch_pygame_game(room_id: str = "", cutscene_id: str = "", dialog_id: str 
     if "XAUTHORITY" not in env and config.XAUTHORITY:
         env["XAUTHORITY"] = config.XAUTHORITY
 
-    PYGAME_PROC = subprocess.Popen(cmd, cwd=str(config.BASE_DIR), env=env)
-    return {"status": "launched", "pid": PYGAME_PROC.pid, "command": cmd}
+    _core.PYGAME_PROC = subprocess.Popen(cmd, cwd=str(config.BASE_DIR), env=env)
+    return {"status": "launched", "pid": _core.PYGAME_PROC.pid, "command": cmd}
 
 
 def stop_pygame_game() -> dict[str, Any]:
     """Terminate any currently running Pygame test play instance."""
-    global PYGAME_PROC
-    if PYGAME_PROC and PYGAME_PROC.poll() is None:
-        pid = PYGAME_PROC.pid
-        PYGAME_PROC.terminate()
+    if _core.PYGAME_PROC and _core.PYGAME_PROC.poll() is None:
+        pid = _core.PYGAME_PROC.pid
+        _core.PYGAME_PROC.terminate()
         try:
-            PYGAME_PROC.wait(timeout=2)
+            _core.PYGAME_PROC.wait(timeout=2)
         except Exception:
-            PYGAME_PROC.kill()
-        PYGAME_PROC = None
+            _core.PYGAME_PROC.kill()
+        _core.PYGAME_PROC = None
         return {"status": "stopped", "pid": pid}
     return {"status": "not_running"}

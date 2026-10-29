@@ -28,7 +28,7 @@ if str(SERVER_DIR) not in sys.path:
 
 from config import config
 from tools import TOOLS_LIST, TOOLS_BY_NAME
-from agent_tools import _load_proj
+from tools._core import _load_proj
 
 
 def _build_json_schema(fn) -> dict[str, Any]:

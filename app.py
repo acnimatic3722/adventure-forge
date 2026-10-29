@@ -23,9 +23,44 @@ from pydantic import BaseModel
 # Import config first
 from config import config
 
-# Import our CV + VLM sprite slicer helpers
-sys.path.insert(0, str(config.SPRITE_SLICER_PATH))
-from slice_sprites import segment_sprites, create_annotated_image, call_vlm_analyzer, load_env
+# Sprite slicer (CV segmentation + Gemini VLM animation mapping).
+# Ships with the repo; ADVENTURE_FORGE_SPRITE_SLICER_PATH can point elsewhere.
+try:
+    from sprite_slicer import (
+        segment_sprites,
+        create_annotated_image,
+        call_vlm_analyzer,
+        export_frames,
+    )
+except ImportError:  # pragma: no cover - external slicer fallback
+    slicer_path = str(config.SPRITE_SLICER_PATH)
+    if slicer_path not in sys.path:
+        sys.path.insert(0, slicer_path)
+    from slice_sprites import (  # type: ignore
+        segment_sprites,
+        create_annotated_image,
+        call_vlm_analyzer,
+    )
+
+    def export_frames(orig_img, boxes, bg_color, out_dir, prefix="frame"):
+        """Frame export fallback for an external slicer checkout."""
+        import numpy as np
+        from PIL import Image
+
+        out_path = Path(out_dir)
+        out_path.mkdir(parents=True, exist_ok=True)
+        frame_files = []
+        for idx, b in enumerate(boxes):
+            crop = orig_img.crop((b["x"], b["y"], b["x"] + b["w"], b["y"] + b["h"])).convert("RGBA")
+            if bg_color is not None:
+                arr = np.array(crop)
+                diff = np.sum(np.abs(arr[:, :, :3].astype(int) - bg_color.astype(int)), axis=2)
+                arr[diff < 20, 3] = 0
+                crop = Image.fromarray(arr, "RGBA")
+            fname = f"{prefix}_{idx:03d}.png"
+            crop.save(out_path / fname)
+            frame_files.append(fname)
+        return frame_files
 
 from PIL import Image, ImageDraw
 import numpy as np
@@ -215,17 +250,8 @@ async def slice_uploaded_spritesheet(
         shutil.rmtree(frames_dir)
     frames_dir.mkdir(parents=True, exist_ok=True)
 
-    frame_urls = []
-    for idx, b in enumerate(boxes):
-        crop = orig_img.crop((b["x"], b["y"], b["x"] + b["w"], b["y"] + b["h"])).convert("RGBA")
-        if bg_color is not None:
-            arr = np.array(crop)
-            diff = np.sum(np.abs(arr[:, :, :3].astype(int) - bg_color.astype(int)), axis=2)
-            arr[diff < 20, 3] = 0
-            crop = Image.fromarray(arr, "RGBA")
-        fname = f"frame_{idx:03d}.png"
-        crop.save(frames_dir / fname)
-        frame_urls.append(f"/assets/sprites/{clean_id}_frames/{fname}")
+    frame_files = export_frames(orig_img, boxes, bg_color, frames_dir)
+    frame_urls = [f"/assets/sprites/{clean_id}_frames/{fname}" for fname in frame_files]
 
     if use_vlm and len(boxes) > 0:
         try:
@@ -454,7 +480,7 @@ async def delete_asset_file(payload: dict[str, Any], api_key: str = Depends(veri
 @app.post("/api/vlm/describe-prop")
 async def vlm_describe_prop(payload: dict[str, Any], api_key: str = Depends(verify_api_key)):
     """Use Gemini VLM to inspect a prop's bounding box in the room (or its sprite) and generate a 'Look at' line."""
-    load_env()
+    config.load_env()
     client = genai.Client()
 
     room_name = payload.get("room_name", "Adventure Room")
@@ -531,7 +557,7 @@ Return ONLY valid JSON matching:
 @app.post("/api/vlm/generate-dialog")
 async def vlm_generate_dialog(payload: dict[str, Any], api_key: str = Depends(verify_api_key)):
     """Use Gemini LLM to generate a classic LucasArts branching dialog tree."""
-    load_env()
+    config.load_env()
     client = genai.Client()
 
     prompt_hint = payload.get("prompt", "A witty conversation about the mystery in the hotel.")
@@ -603,7 +629,7 @@ Return ONLY valid JSON matching:
 @app.post("/api/vlm/generate-cutscene")
 async def vlm_generate_cutscene(payload: dict[str, Any], api_key: str = Depends(verify_api_key)):
     """Use Gemini LLM to generate a choreographed LucasArts cutscene timeline."""
-    load_env()
+    config.load_env()
     client = genai.Client()
 
     prompt_hint = payload.get("prompt", "Sam and Max walk into the room, look around, and banter about the mystery.")

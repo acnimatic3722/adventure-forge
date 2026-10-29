@@ -15,15 +15,18 @@ from google import genai
 from google.genai import types
 from PIL import Image
 
-from config import config
-from agent_tools import (
+from ._core import (
     _load_proj,
     _get_api_keys,
     load_env,
     _resolve_asset,
-    TOOLS_LIST,
-    TOOLS_BY_NAME,
 )
+
+# The canonical tool registry. Imported from the package (not from a module
+# copy) so the in-app chat agent and external MCP clients operate on exactly
+# the same tools. `tools/__init__.py` deliberately does NOT import this
+# module, which keeps this import free of circularity.
+from tools import TOOLS_LIST, TOOLS_BY_NAME
 
 
 def _coerce_tool_args(fn, raw_args: dict[str, Any]) -> dict[str, Any]:

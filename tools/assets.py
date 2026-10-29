@@ -1,17 +1,12 @@
 """
 AdventureForge — Asset Library & Background Remover MCP Tools
 """
-import os
 import shutil
 import numpy as np
 from typing import Any
 from config import config
-from agent_tools import (
-    _load_proj,
-    _save_proj,
+from ._core import (
     _resolve_asset,
-    ASSETS_DIR,
-    DATA_DIR,
 )
 from PIL import Image
 
@@ -19,12 +14,12 @@ from PIL import Image
 def list_assets(category: str = "all") -> dict[str, Any]:
     """List uploaded image assets on disk. category can be 'all', 'items', 'backgrounds', 'sprites', or 'frames'."""
     assets = []
-    if ASSETS_DIR.exists():
-        for path in sorted(ASSETS_DIR.rglob("*")):
+    if config.ASSETS_DIR.exists():
+        for path in sorted(config.ASSETS_DIR.rglob("*")):
             if not path.is_file() or path.suffix.lower() not in (".png", ".jpg", ".jpeg", ".webp") or ".orig." in path.name:
                 continue
-            rel = "/" + str(path.relative_to(DATA_DIR)).replace("\\", "/")
-            parts = path.relative_to(ASSETS_DIR).parts
+            rel = "/" + str(path.relative_to(config.DATA_DIR)).replace("\\", "/")
+            parts = path.relative_to(config.ASSETS_DIR).parts
             top_cat = parts[0] if parts else "other"
             cat = "frames" if (top_cat == "sprites" and len(parts) > 1 and parts[1].endswith("_frames")) else top_cat
             if category != "all" and cat != category:

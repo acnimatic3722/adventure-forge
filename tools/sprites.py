@@ -4,11 +4,10 @@ AdventureForge — Sprites & Animation Studio MCP Tools
 import json
 from typing import Any
 from config import config
-from agent_tools import (
+from ._core import (
     _load_proj,
     _save_proj,
     _normalize_vlm_meta,
-    DATA_DIR,
 )
 
 
@@ -37,7 +36,7 @@ def get_sprite(sprite_id: str) -> dict[str, Any]:
     if not sp:
         return {"error": f"Sprite '{sprite_id}' not found."}
     meta_rel = sp.get("metadata_file", f"/assets/sprites/{sprite_id}_slicer.json").lstrip("/")
-    meta_path = DATA_DIR / meta_rel
+    meta_path = config.DATA_DIR / meta_rel
     meta = json.loads(meta_path.read_text()) if meta_path.exists() else {}
     _normalize_vlm_meta(meta, fallback_name=sprite_id)
     return {"sprite": sp, "metadata": meta}
@@ -57,7 +56,7 @@ def add_or_update_sprite_animation(
         return {"error": f"Sprite '{sprite_id}' not found."}
 
     meta_rel = sp.get("metadata_file", f"/assets/sprites/{sprite_id}_slicer.json").lstrip("/")
-    meta_path = DATA_DIR / meta_rel
+    meta_path = config.DATA_DIR / meta_rel
     meta = json.loads(meta_path.read_text()) if meta_path.exists() else {"vlm": {"animations": []}}
     _normalize_vlm_meta(meta, fallback_name=sprite_id)
 
@@ -84,7 +83,7 @@ def delete_sprite_animation(sprite_id: str, anim_name: str) -> dict[str, Any]:
     if not sp:
         return {"error": f"Sprite '{sprite_id}' not found."}
     meta_rel = sp.get("metadata_file", f"/assets/sprites/{sprite_id}_slicer.json").lstrip("/")
-    meta_path = DATA_DIR / meta_rel
+    meta_path = config.DATA_DIR / meta_rel
     if not meta_path.exists():
         return {"error": f"Metadata file for '{sprite_id}' not found."}
     meta = json.loads(meta_path.read_text())
@@ -106,7 +105,7 @@ def assign_sprite_direction_role(sprite_id: str, role: str, anim_name: str) -> d
     roles[role] = anim_name
 
     meta_rel = sp.get("metadata_file", f"/assets/sprites/{sprite_id}_slicer.json").lstrip("/")
-    meta_path = DATA_DIR / meta_rel
+    meta_path = config.DATA_DIR / meta_rel
     if meta_path.exists():
         meta = json.loads(meta_path.read_text())
         meta["anim_roles"] = roles

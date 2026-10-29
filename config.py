@@ -7,6 +7,32 @@ from pathlib import Path
 from typing import Optional
 
 
+def _read_env_file(path: Path) -> None:
+    """Load KEY=VALUE pairs from an env file without overriding existing vars."""
+    if not path.exists():
+        return
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        return
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+# Load .env BEFORE the class body evaluates os.getenv() for path overrides,
+# so ADVENTURE_FORGE_* settings in .env actually take effect.
+_PROJECT_DIR = Path(__file__).resolve().parent
+_read_env_file(_PROJECT_DIR / ".env")
+_read_env_file(_PROJECT_DIR.parent / ".env")
+
+
 class Config:
     """Centralized configuration with environment variable overrides."""
 
@@ -29,8 +55,10 @@ class Config:
     MUSIC_DIR: Path = ASSETS_DIR / "music"
 
     # External tool paths (configurable via env)
+    # The sprite slicer now ships inside this repo; the env var can still point
+    # at an external checkout if you prefer to keep them separate.
     SPRITE_SLICER_PATH: Path = Path(
-        os.getenv("ADVENTURE_FORGE_SPRITE_SLICER_PATH", "/home/x/Desktop/IDEAS/tools/sprite_slicer")
+        os.getenv("ADVENTURE_FORGE_SPRITE_SLICER_PATH", str(BASE_DIR / "sprite_slicer"))
     )
 
     # Jetson / local model paths
@@ -78,21 +106,61 @@ class Config:
     # Logging
     LOG_LEVEL: str = os.getenv("ADVENTURE_FORGE_LOG_LEVEL", "INFO")
 
+    # Env files (project .env wins; parent .env is the legacy fallback)
+    ENV_FILE: Path = BASE_DIR / ".env"
+    PARENT_ENV_FILE: Path = BASE_DIR.parent / ".env"
+
     # Rate limiting
     RATE_LIMIT_REQUESTS: int = int(os.getenv("ADVENTURE_FORGE_RATE_LIMIT", "100"))
     RATE_LIMIT_WINDOW: int = int(os.getenv("ADVENTURE_FORGE_RATE_LIMIT_WINDOW", "60"))  # seconds
 
     @classmethod
+    def load_env(cls, env_path: "str | Path | None" = None) -> None:
+        """Load .env values into os.environ.
+
+        With no argument, loads the project .env first and then the parent
+        directory .env as a fallback. Existing environment variables always
+        win, so real env vars override file values.
+        """
+        if env_path is not None:
+            _read_env_file(Path(env_path))
+            return
+        _read_env_file(cls.ENV_FILE)
+        _read_env_file(cls.PARENT_ENV_FILE)
+
+    @classmethod
+    def get_api_keys(cls) -> dict[str, str]:
+        """Collect API keys from the environment (loading .env as needed)."""
+        cls.load_env()
+        return {
+            "gemini": os.getenv("GEMINI_API_KEY", "").strip(),
+            "serp": os.getenv("SERP_API_KEY", "").strip(),
+            "freesound": os.getenv("FREESOUND_API_KEY", "").strip(),
+            "hf": os.getenv("HF_TOKEN", "").strip(),
+            "nvidia": os.getenv("NVIDIA_API_KEY", "").strip(),
+            "prime": os.getenv("PRIME_API_KEY", "").strip(),
+            "spritefusion": (
+                os.getenv("SPRITE_FUSION_API_KEY", "").strip()
+                or os.getenv("SPRITEFUSION_API_KEY", "").strip()
+            ),
+        }
+
+    @classmethod
     def ensure_dirs(cls) -> None:
-        """Create all required directories."""
+        """Create all required directories.
+
+        Sub-directories are derived from ASSETS_DIR at call time so runtime
+        overrides (and test fixtures) are honoured.
+        """
+        assets = cls.ASSETS_DIR
         dirs = [
             cls.DATA_DIR,
-            cls.ASSETS_DIR,
-            cls.BACKGROUNDS_DIR,
-            cls.ITEMS_DIR,
-            cls.SPRITES_DIR,
-            cls.SOUNDS_DIR,
-            cls.MUSIC_DIR,
+            assets,
+            assets / "backgrounds",
+            assets / "items",
+            assets / "sprites",
+            assets / "sounds",
+            assets / "music",
             cls.STATIC_DIR,
         ]
         for d in dirs:

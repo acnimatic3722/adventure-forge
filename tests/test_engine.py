@@ -281,7 +281,8 @@ class TestAdventureRuntime:
 
                 runtime = AdventureRuntime()
                 mock_sound = MagicMock()
-                runtime.sound_cache["test.wav"] = mock_sound
+                # The engine caches sounds by their resolved path
+                runtime.sound_cache[str(mock_path)] = mock_sound
 
                 runtime.play_sound("/assets/sounds/test.wav")
                 mock_sound.play.assert_called_once()

@@ -1,27 +1,35 @@
 # AdventureForge — Python Dependencies
+# Pinned to the known-good versions this project is developed and tested against.
+
 # Core web framework
-fastapi==0.115.0
-uvicorn[standard]==0.32.0
-pydantic==2.9.2
-python-multipart==0.0.9
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+pydantic==2.14.1
+python-multipart==0.0.32
 
-# Image processing
-pillow==10.4.0
+# MCP server (FastMCP)
+fastmcp==4.1.0
+
+# Game runtime
+pygame-ce==2.5.8
+
+# Image / science processing
+pillow==10.2.0
 numpy==1.26.4
+scipy==1.11.4
 
-# Google Gemini AI
-google-genai==1.2.0
+# Google Gemini AI (VLM prop detection, dialog + cutscene generation)
+google-genai==2.33.0
 
 # Environment & config
-python-dotenv==1.0.1
+python-dotenv==1.2.4
 
-# Hugging Face Hub
-huggingface-hub==0.25.2
-hf-transfer==0.1.9
+# Hugging Face Hub (model downloads, voice cloning)
+huggingface-hub==2.3.0
 
 # HTTP requests
-requests==2.32.3
-httpx==0.27.2
+requests==2.31.0
+httpx==0.28.1
 
 # Testing
 pytest==8.3.2

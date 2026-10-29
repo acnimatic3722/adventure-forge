@@ -19,44 +19,17 @@ from fastapi.testclient import TestClient
 # Mock external dependencies before importing app
 @pytest.fixture(autouse=True)
 def mock_dependencies():
-    """Mock all external dependencies."""
-    with patch.dict("sys.modules", {
-        "google.genai": MagicMock(),
-        "google.genai.types": MagicMock(),
-        "PIL": MagicMock(),
-        "PIL.Image": MagicMock(),
-        "PIL.ImageDraw": MagicMock(),
-        "numpy": MagicMock(),
-        "slice_sprites": MagicMock(),
-    }):
-        # Configure mocks
-        import google.genai
-        google.genai.Client = MagicMock()
-        google.genai.types.GenerateContentConfig = MagicMock()
-        
-        import PIL.Image
-        PIL.Image.open = MagicMock(return_value=MagicMock())
-        PIL.Image.new = MagicMock(return_value=MagicMock())
-        PIL.Image.Image.save = MagicMock()
-        PIL.Image.Image.convert = MagicMock(return_value=MagicMock())
-        PIL.Image.Image.resize = MagicMock(return_value=MagicMock())
-        PIL.Image.Image.crop = MagicMock(return_value=MagicMock())
-        PIL.Image.Image.split = MagicMock(return_value=[MagicMock()]*4)
-        PIL.Image.merge = MagicMock(return_value=MagicMock())
-        PIL.Image.Image.point = MagicMock(return_value=MagicMock())
-        PIL.Image.Image.getbbox = MagicMock(return_value=(0, 0, 100, 100))
-        
-        import numpy as np
-        np.array = MagicMock(return_value=MagicMock())
-        np.sum = MagicMock(return_value=MagicMock())
-        np.abs = MagicMock(return_value=MagicMock())
-        
-        import slice_sprites
-        slice_sprites.segment_sprites = MagicMock(return_value=(MagicMock(), [], None))
-        slice_sprites.create_annotated_image = MagicMock(return_value=MagicMock())
-        slice_sprites.call_vlm_analyzer = MagicMock(return_value={})
-        slice_sprites.load_env = MagicMock()
-        
+    """Mock network clients without breaking real module imports.
+
+    Only the Gemini client is mocked - PIL, numpy and the sprite slicer are
+    real (and purely local), so mocking them wholesale used to break the
+    endpoints that actually process images.
+    """
+    import google.genai as genai_module
+    import google.genai.types as types_module
+
+    with patch.object(genai_module, "Client", MagicMock()), \
+            patch.object(types_module, "GenerateContentConfig", MagicMock()):
         yield
 
 
@@ -183,40 +156,54 @@ class TestAssetEndpoints:
 
     @patch("app.load_project")
     @patch("app.save_project")
-    @patch("app._resolve_safe_asset_path")
-    def test_save_edited_asset(self, mock_resolve, mock_save, mock_load, client, mock_project):
-        """Test POST /api/assets/save-edited."""
+    def test_save_edited_asset(self, mock_save, mock_load, client, mock_project, tmp_path):
+        """Test POST /api/assets/save-edited with a real PNG payload."""
         mock_load.return_value = mock_project
         mock_save.return_value = None
-        
-        mock_target = MagicMock()
-        mock_target.exists.return_value = True
-        mock_target.is_file.return_value = True
-        mock_target.with_name.return_value.exists.return_value = False
-        mock_resolve.return_value = mock_target
 
+        import base64
+        import io
+        from PIL import Image
+
+        buf = io.BytesIO()
+        Image.new("RGBA", (8, 8), (255, 0, 0, 255)).save(buf, format="PNG")
+        png_bytes = buf.getvalue()
+
+        target = tmp_path / "test.png"
+        target.write_bytes(png_bytes)
+
+        data_url = "data:image/png;base64," + base64.b64encode(png_bytes).decode()
         payload = {
             "url": "/assets/items/test.png",
-            "image_data": "data:image/png;base64,fakebase64data",
+            "image_data": data_url,
             "trim": False
         }
-        response = client.post("/api/assets/save-edited", json=payload)
-        # Will likely fail due to PIL mocking, but tests endpoint structure
+
+        with patch("app._resolve_safe_asset_path", return_value=target):
+            response = client.post("/api/assets/save-edited", json=payload)
+
+        assert response.status_code == 200
+        assert response.json()["status"] == "ok"
+        # An .orig backup is created alongside the edited asset
+        assert (tmp_path / "test.orig.png").exists()
 
     @patch("app.load_project")
     @patch("app.save_project")
-    @patch("app._resolve_safe_asset_path")
-    def test_restore_original_asset(self, mock_resolve, mock_save, mock_load, client, mock_project):
+    def test_restore_original_asset(self, mock_save, mock_load, client, mock_project, tmp_path):
         """Test POST /api/assets/restore-original."""
         mock_load.return_value = mock_project
         mock_save.return_value = None
-        
-        mock_target = MagicMock()
-        mock_target.with_name.return_value.exists.return_value = True
-        mock_resolve.return_value = mock_target
 
-        response = client.post("/api/assets/restore-original", json={"url": "/assets/items/test.png"})
-        # Tests endpoint structure
+        target = tmp_path / "test.png"
+        target.write_bytes(b"edited")
+        backup = tmp_path / "test.orig.png"
+        backup.write_bytes(b"original")
+
+        with patch("app._resolve_safe_asset_path", return_value=target):
+            response = client.post("/api/assets/restore-original", json={"url": "/assets/items/test.png"})
+
+        assert response.status_code == 200
+        assert target.read_bytes() == b"original"
 
     @patch("app.load_project")
     @patch("app.save_project")
@@ -240,7 +227,7 @@ class TestAssetEndpoints:
 class TestVLMEndpoints:
     """Test VLM (Vision Language Model) endpoints."""
 
-    @patch("app.load_env")
+    @patch("app.config.load_env")
     @patch("app.genai.Client")
     def test_vlm_describe_prop(self, mock_genai_client, mock_load_env, client, mock_project):
         """Test POST /api/vlm/describe-prop."""
@@ -265,7 +252,7 @@ class TestVLMEndpoints:
         response = client.post("/api/vlm/describe-prop", json=payload)
         # Tests endpoint structure
 
-    @patch("app.load_env")
+    @patch("app.config.load_env")
     @patch("app.genai.Client")
     def test_vlm_generate_dialog(self, mock_genai_client, mock_load_env, client, mock_project):
         """Test POST /api/vlm/generate-dialog."""
@@ -294,7 +281,7 @@ class TestVLMEndpoints:
         response = client.post("/api/vlm/generate-dialog", json=payload)
         # Tests endpoint structure
 
-    @patch("app.load_env")
+    @patch("app.config.load_env")
     @patch("app.genai.Client")
     def test_vlm_generate_cutscene(self, mock_genai_client, mock_load_env, client, mock_project):
         """Test POST /api/vlm/generate-cutscene."""
@@ -363,7 +350,7 @@ class TestAgentEndpoints:
         assert isinstance(data["tools"], list)
 
     @patch("app.load_project")
-    @patch("app.run_agent_instruction")
+    @patch("tools.agent.run_agent_instruction")
     def test_agent_chat(self, mock_run_agent, mock_load, client, mock_project):
         """Test POST /api/agent/chat."""
         mock_load.return_value = mock_project
@@ -386,7 +373,7 @@ class TestAgentEndpoints:
 class TestMediaEndpoints:
     """Test media generation endpoints."""
 
-    @patch("app.list_available_media_apis")
+    @patch("tools.media.list_available_media_apis")
     def test_media_status(self, mock_list_apis, client):
         """Test GET /api/media/status."""
         mock_list_apis.return_value = {
@@ -437,9 +424,13 @@ class TestAuthentication:
                 assert response.status_code == 200
 
     def test_with_invalid_auth(self, client):
-        """Test endpoints reject invalid API key."""
+        """Test mutating endpoints reject an invalid API key."""
         with patch("app.config.API_KEY", "valid-key"):
-            response = client.get("/api/project", headers={"X-API-Key": "invalid-key"})
+            response = client.post(
+                "/api/project",
+                json={"title": "nope", "rooms": []},
+                headers={"X-API-Key": "invalid-key"},
+            )
             assert response.status_code == 401
 
     def test_with_valid_auth(self, client, mock_project):
