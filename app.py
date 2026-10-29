@@ -14,11 +14,10 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Depends, Header
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Depends
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import APIKeyHeader
-from pydantic import BaseModel
 
 # Import config first
 from config import config
@@ -63,7 +62,6 @@ except ImportError:  # pragma: no cover - external slicer fallback
         return frame_files
 
 from PIL import Image, ImageDraw
-import numpy as np
 from google import genai
 from google.genai import types
 

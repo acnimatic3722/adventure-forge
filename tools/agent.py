@@ -45,19 +45,19 @@ def _coerce_tool_args(fn, raw_args: dict[str, Any]) -> dict[str, Any]:
             continue
         param = sig.parameters[name]
         ann = param.annotation
-        if ann == int and isinstance(val, (str, float)):
+        if ann is int and isinstance(val, (str, float)):
             try:
                 coerced[name] = int(val)
                 continue
             except Exception:
                 pass
-        elif ann == float and isinstance(val, (str, int)):
+        elif ann is float and isinstance(val, (str, int)):
             try:
                 coerced[name] = float(val)
                 continue
             except Exception:
                 pass
-        elif ann == bool and isinstance(val, str):
+        elif ann is bool and isinstance(val, str):
             coerced[name] = val.lower() in ("true", "1", "yes")
             continue
         coerced[name] = val
@@ -72,15 +72,15 @@ def function_to_openai_tool(fn) -> dict[str, Any]:
     required: list[str] = []
     for param_name, param in sig.parameters.items():
         param_type = "string"
-        if param.annotation == int:
+        if param.annotation is int:
             param_type = "integer"
-        elif param.annotation == float:
+        elif param.annotation is float:
             param_type = "number"
-        elif param.annotation == bool:
+        elif param.annotation is bool:
             param_type = "boolean"
-        elif getattr(param.annotation, "__origin__", None) == list or param.annotation == list:
+        elif getattr(param.annotation, "__origin__", None) is list or param.annotation is list:
             param_type = "array"
-        elif getattr(param.annotation, "__origin__", None) == dict or param.annotation == dict:
+        elif getattr(param.annotation, "__origin__", None) is dict or param.annotation is dict:
             param_type = "object"
 
         properties[param_name] = {"type": param_type}

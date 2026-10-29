@@ -1,6 +1,7 @@
 """
 AdventureForge — Rooms & World Map MCP Tools
 """
+import json
 from typing import Any
 from ._core import (
     _load_proj,
@@ -131,6 +132,3 @@ def set_start_room(room_id: str) -> dict[str, Any]:
     proj["start_room"] = room_id
     _save_proj(proj)
     return {"status": "ok", "start_room": room_id}
-
-
-import json

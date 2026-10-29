@@ -48,27 +48,17 @@ WORKDIR /app
 # ============================================================================
 FROM base AS python-deps
 
-COPY requirements.txt* ./
-RUN pip install --no-cache-dir -r requirements.txt 2>/dev/null || true
-
-# Install core dependencies directly if no requirements.txt
-RUN pip install --no-cache-dir \
-    fastapi==0.115.0 \
-    uvicorn[standard]==0.32.0 \
-    pydantic==2.9.2 \
-    pillow==10.4.0 \
-    numpy==1.26.4 \
-    google-genai==1.2.0 \
-    python-dotenv==1.0.1 \
-    huggingface-hub==0.25.2 \
-    requests==2.32.3
+COPY requirements.txt ./
+# Fail loudly if the dependency install breaks - a masked failure here only
+# surfaces later as an ImportError at runtime.
+RUN pip install --no-cache-dir -r requirements.txt
 
 # ============================================================================
 # Application stage
 # ============================================================================
 FROM python-deps AS app
 
-# Copy application code
+# Copy application code (includes the vendored sprite_slicer/ package)
 COPY --chown=appuser:appuser . .
 
 # Create required directories
@@ -81,7 +71,7 @@ RUN mkdir -p /app/data/assets/{backgrounds,items,sprites,sounds,music} \
 # Environment variables (can be overridden at runtime)
 ENV ADVENTURE_FORGE_HOST=0.0.0.0 \
     ADVENTURE_FORGE_PORT=8780 \
-    ADVENTURE_FORGE_SPRITE_SLICER_PATH=/app/tools/sprite_slicer \
+    ADVENTURE_FORGE_SPRITE_SLICER_PATH=/app/sprite_slicer \
     ADVENTURE_FORGE_JETSON_MODELS_DIR=/app/models \
     ADVENTURE_FORGE_SD_CPP_DIR=/app/stable-diffusion.cpp \
     ADVENTURE_FORGE_JETSON_DOCKER_IMAGE=hotbreath/pytorch:2.12-r39.2.tegra-aarch64-cu132-24.04-cmake \
@@ -140,15 +130,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     iputils-ping \
     && rm -rf /var/lib/apt/lists/*
 
-# Install development dependencies
-RUN pip install --no-cache-dir \
-    pytest==8.3.2 \
-    pytest-asyncio==0.23.7 \
-    pytest-cov==5.0.0 \
-    httpx==0.27.2 \
-    black==24.10.0 \
-    ruff==0.6.0 \
-    mypy==1.11.2
+# Development dependencies (pytest, black, ruff, mypy) already come from
+# requirements.txt in the python-deps stage.
+RUN pip install --no-cache-dir --upgrade pip
 
 USER appuser
 

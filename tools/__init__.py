@@ -171,11 +171,25 @@ TOOLS_LIST = [
     jetson_generate_image,
     generate_image_ai,
     download_asset_from_url,
-    create_coordinate_grid_overlay,
     vlm_auto_detect_and_place_props,
     vlm_generate_and_place_items,
     vlm_describe_hotspot,
     vlm_inspect_room_scene,
 ]
 
+# `create_coordinate_grid_overlay` is deliberately NOT a registered tool: it
+# takes a PIL image object, which an MCP client cannot pass. It stays
+# importable as a helper for the VLM tools.
 TOOLS_BY_NAME = {fn.__name__: fn for fn in TOOLS_LIST}
+
+# The agent loop is exported for convenience (the CLI and the web editor both
+# use it). It is imported LAST so that `tools.agent` can safely import
+# TOOLS_LIST from this package without a circular-import failure.
+from .agent import run_agent_instruction  # noqa: E402
+
+__all__ = [fn.__name__ for fn in TOOLS_LIST] + [
+    "create_coordinate_grid_overlay",
+    "run_agent_instruction",
+    "TOOLS_LIST",
+    "TOOLS_BY_NAME",
+]

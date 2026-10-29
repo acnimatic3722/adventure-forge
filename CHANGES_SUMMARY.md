@@ -1,227 +1,181 @@
-# AdventureForge — Refactoring Summary
+# AdventureForge — Refactoring Notes
 
-## Overview
-Complete refactoring of AdventureForge to improve maintainability, security, and deployability.
-
----
-
-## 🎯 Tasks Completed
-
-### 1. Configuration System (`config.py`)
-- **Centralized all paths** — BASE_DIR, DATA_DIR, ASSETS_DIR, PROJECT_FILE, model paths
-- **Environment variable overrides** — Every path configurable via `ADVENTURE_FORGE_*` env vars
-- **Validation & warnings** — `config.validate()` checks for missing dependencies
-- **Directory creation** — `config.ensure_dirs()` creates all required directories
-- **Backwards compatibility** — Original constants still available as module-level aliases
-
-### 2. Authentication (`app.py`)
-- **API Key authentication** — Optional `X-API-Key` header via `ADVENTURE_FORGE_API_KEY`
-- **All mutating endpoints protected** — POST/PUT/DELETE endpoints require valid key
-- **Graceful fallback** — Runs without auth if no key configured (dev mode)
-- **Health endpoint** — `/health` for container orchestration (no auth required)
-
-### 3. Modular Tools Package (`tools/`)
-Split `agent_tools.py` (2,670 lines) into 11 focused modules:
-
-| Module | Tools | Description |
-|--------|-------|-------------|
-| `project.py` | 6 | Project metadata, Pygame launch/stop |
-| `rooms.py` | 6 | World map, room CRUD, walkable polygons |
-| `hotspots.py` | 6 | Props, pickups, NPCs, doors, door linking |
-| `items.py` | 4 | Inventory items, placement, usage linking |
-| `puzzles.py` | 4 | Puzzle rules, triggers, conditions |
-| `dialogs.py` | 7 | Branching dialog trees, nodes, choices, AI generation |
-| `cutscenes.py` | 7 | Timeline steps, AI director |
-| `sprites.py` | 5 | Animation sequences, role mapping, scale |
-| `assets.py` | 5 | Asset library, background remover, pixelizer |
-| `media.py` | 10 | Sound/image search, generation (Jetson, Gemini, Sprite Fusion) |
-| `vlm.py` | 3 | VLM prop detection, item placement |
-| `agent.py` | 3 | NVIDIA NIM + Gemini agent loops |
-
-**Total: 67 tools** (up from 57) — all accessible via `tools.TOOLS_LIST`
-
-### 4. Docker Support (`Dockerfile`)
-- **Multi-stage build** — base, python-deps, app, jetson, dev
-- **System dependencies** — SDL2, Pillow, numpy, Xvfb for headless
-- **Jetson GPU stage** — Builds stable-diffusion.cpp with CUDA
-- **Dev stage** — Includes pytest, black, ruff, mypy
-- **Health check** — `/health` endpoint
-- **Non-root user** — Runs as `appuser`
-
-### 5. Test Suite (`tests/`)
-- **`test_tools.py`** — 12 test classes, 60+ tests covering all MCP tools
-- **`test_engine.py`** — Engine helpers, CharacterAnim, AdventureRuntime, cutscene/dialog engines
-- **`test_api.py`** — FastAPI endpoint tests with mocking
-- **`conftest.py`** — Shared fixtures, async support
-- **`run_tests.py`** — CLI runner with coverage support
-- **`pytest.ini`** — Configuration with markers (integration, slow)
-
-### 6. Code Quality Improvements
-- **Fixed hardcoded paths** — All `/home/x/...` references moved to config
-- **Relative import fixes** — Tools package uses absolute imports
-- **Removed duplicate code** — Centralized project load/save in `agent_tools.py`
-- **Async-ready** — VLM calls can be wrapped in `asyncio.to_thread`
+This document records the work done to turn the original one-night prototype
+into a maintainable, deployable project. It replaces the earlier summary,
+which described intentions rather than the final state.
 
 ---
 
-## 📁 New File Structure
+## 1. The duplication problem
 
-```
-adventure_forge/
-├── config.py                    # NEW: Centralized configuration
-├── app.py                       # UPDATED: Auth, config, health endpoint
-├── engine_pygame.py             # UPDATED: Uses config
-├── mcp_server.py                # UPDATED: Uses tools package
-├── forge_cli.py                 # UPDATED: Uses tools package
-├── requirements.txt             # NEW: Python dependencies
-├── pytest.ini                   # NEW: Test configuration
-├── run_tests.py                 # NEW: Test runner CLI
-├── Dockerfile                   # NEW: Multi-stage Docker build
-├── CHANGES_SUMMARY.md           # THIS FILE
-├── tools/                       # NEW: Modular MCP tools
-│   ├── __init__.py              # Tool registry (67 tools)
-│   ├── project.py
-│   ├── rooms.py
-│   ├── hotspots.py
-│   ├── items.py
-│   ├── puzzles.py
-│   ├── dialogs.py
-│   ├── cutscenes.py
-│   ├── sprites.py
-│   ├── assets.py
-│   ├── media.py
-│   ├── vlm.py
-│   └── agent.py
-└── tests/                       # NEW: Comprehensive test suite
-    ├── conftest.py
-    ├── test_tools.py
-    ├── test_engine.py
-    ├── test_api.py
-    └── __init__.py
-```
+`agent_tools.py` (3,449 lines) held every tool implementation. The `tools/`
+package was then added as a *copy* of it rather than a move:
+
+- **75 functions existed in both places**, 71 byte-identical.
+- **4 had already diverged**, including `vlm_generate_and_place_items` and
+  `launch_pygame_game`.
+- `tools/agent.py` imported `TOOLS_LIST` from `agent_tools`, so the **in-app
+  chat agent ran the old implementations** while external MCP clients ran the
+  new ones — the same project could be edited differently depending on who
+  asked.
+- The split silently dropped `vlm_describe_hotspot` and
+  `vlm_inspect_room_scene` from the MCP surface, even though
+  `README_MCP.md` still advertised them.
+
+### Resolution
+
+- `tools/_core.py` now owns the shared internals (project persistence, asset
+  resolution, credential discovery, runtime state).
+- `agent_tools.py` is **deleted**.
+- Every tool module imports from `tools/_core`.
+- `tools/agent.py` uses the canonical `tools.TOOLS_LIST`.
+- Both dropped VLM tools were restored.
+- The MCP server and the in-app agent now execute **the same function
+  objects** — drift is structurally impossible.
+
+| | Before | After |
+|---|---|---|
+| `agent_tools.py` | 3,449 lines | deleted |
+| Duplicate functions | 75 | 0 |
+| Diverged functions | 4 | 0 |
+| Registered tools | 57 (two registries) | 68 (one registry) |
 
 ---
 
-## 🔧 Environment Variables
+## 2. VLM item placement (merged)
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ADVENTURE_FORGE_API_KEY` | None | Enable API authentication |
-| `ADVENTURE_FORGE_SECRET_KEY` | dev-secret | Session secret |
-| `ADVENTURE_FORGE_HOST` | 0.0.0.0 | Server bind address |
-| `ADVENTURE_FORGE_PORT` | 8780 | Server port |
-| `ADVENTURE_FORGE_SPRITE_SLICER_PATH` | /home/x/.../sprite_slicer | CV sprite slicer location |
-| `ADVENTURE_FORGE_JETSON_MODELS_DIR` | /home/x/jetson-containers/data/models | Local model storage |
-| `ADVENTURE_FORGE_SD_CPP_DIR` | /home/x/jetson-containers/data/stable-diffusion.cpp | SD.cpp build |
-| `ADVENTURE_FORGE_JETSON_DOCKER_IMAGE` | hotbreath/pytorch:... | Jetson Docker image |
-| `DISPLAY` | :1.0 | X11 display for Pygame |
-| `GEMINI_API_KEY` | — | Gemini AI |
-| `SERP_API_KEY` | — | Google Images search |
-| `FREESOUND_API_KEY` | — | Sound effects |
-| `SPRITE_FUSION_API_KEY` | — | Pixel art generation |
-| `NVIDIA_API_KEY` | — | NVIDIA NIM models |
-| `HF_TOKEN` | — | Hugging Face Hub |
+`vlm_generate_and_place_items` existed in two incompatible versions. The
+merged implementation keeps both strengths:
+
+- **Placement** — the coordinate-grid-overlay pipeline, with pixel-accurate
+  `rect` / `walk_to` positions and a pickup hotspot registered alongside the
+  inventory item.
+- **Icons** — the legacy Jetson-first generation path: local SD when
+  available, then cloud backends (Sprite Fusion → Gemini → Serp), then
+  pixelisation to 32×32 / 16 colours, and finally a letter-badge fallback so
+  an item is never left without a sprite.
+- Both payload shapes are accepted (`{"rect": {...}}` and flat `x/y/w/h`), so
+  older prompts keep working.
 
 ---
 
-## 🚀 Quick Start
+## 3. Configuration and secrets
 
-### Development
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Run with auto-reload
-python3 app.py
-
-# Run tests
-python3 run_tests.py          # All tests
-python3 run_tests.py tools    # Tool tests only
-python3 run_tests.py --coverage  # With coverage
-```
-
-### With Authentication
-```bash
-export ADVENTURE_FORGE_API_KEY="your-secret-key"
-python3 app.py
-
-# Client usage
-curl -H "X-API-Key: your-secret-key" http://localhost:8780/api/project
-```
-
-### Docker
-```bash
-# Build
-docker build -t adventure-forge .
-
-# Run (web editor only)
-docker run -p 8780:8780 -v $(pwd)/data:/app/data adventure-forge
-
-# Run with Jetson GPU (requires nvidia-container-toolkit)
-docker build --target jetson -t adventure-forge:jetson .
-docker run --runtime=nvidia -p 8780:8780 -v $(pwd)/data:/app/data adventure-forge:jetson
-```
-
-### MCP Server
-```bash
-# stdio mode (for Claude Desktop, etc.)
-python3 mcp_server.py
-
-# With config
-{"mcpServers": {"adventure-forge": {"command": "python3", "args": ["/path/to/adventure_forge/mcp_server.py"]}}}
-```
+- **`.env` was never read.** `load_env()` defaulted to the *parent* directory's
+  `.env`; the project's own `.env` was dead weight and editing it alone had no
+  effect. Loading now happens in `config.py`: project `.env` first, parent
+  `.env` as fallback, and real environment variables always win.
+- **Path overrides now work.** `config.py` captured `os.getenv()` at import
+  time, before any `.env` was loaded, so `ADVENTURE_FORGE_*` settings in a
+  `.env` were ignored. The `.env` is now loaded before the class body
+  evaluates those values.
+- **Paths are resolved at call time** (`config.PROJECT_FILE`, not a module
+  constant captured at import), which is what makes runtime overrides and
+  test isolation work.
+- **`ensure_dirs()` derives its sub-directories** from `ASSETS_DIR` at call
+  time rather than from class attributes frozen at import.
+- **Asset traversal guard tightened** — `startswith()` let a sibling directory
+  such as `data/assets_evil/` pass; it now uses `Path.is_relative_to()`.
 
 ---
 
-## 🧪 Testing
+## 4. Sprite slicer integrated
 
-```bash
-# Unit tests only
-python3 run_tests.py unit
+The sprite slicer lived in a sibling project (`/home/x/Desktop/IDEAS/tools/`)
+and was imported by absolute path, so the repo could not run without it.
 
-# Integration tests (require running server)
-python3 run_tests.py integration
-
-# Specific module
-python3 run_tests.py tools
-python3 run_tests.py engine
-python3 run_tests.py api
-
-# With coverage
-python3 run_tests.py --coverage
-```
+- Vendored into `sprite_slicer/` as a real package (`slicer.py`, `__init__.py`,
+  `__main__.py` CLI).
+- **Godot export code removed** — the tool predates the editor and its Godot
+  `SpriteFrames` output was not used by AdventureForge.
+- `export_frames()` was folded in, removing a duplicated copy of the frame
+  export loop from `app.py`.
+- `app.py` imports it directly, with a fallback to an external checkout if
+  `ADVENTURE_FORGE_SPRITE_SLICER_PATH` points elsewhere.
+- `scipy` (required by the segmentation) added to `requirements.txt` — it was
+  installed locally but never pinned, so the Docker image could not import it.
 
 ---
 
-## ⚠️ Breaking Changes
+## 5. MCP server rebuilt on FastMCP
 
-1. **API Key required** for mutating endpoints (when `ADVENTURE_FORGE_API_KEY` is set)
-2. **Module imports changed** — Use `from tools import TOOLS_LIST` instead of `from agent_tools import TOOLS_LIST`
-3. **Config paths** — Use `from config import config` instead of hardcoded paths
-4. **Docker required for Jetson** — Local GPU generation runs in container
+The hand-rolled JSON-RPC implementation typed every parameter as `"string"`
+unless its annotation was exactly `int`, `float` or `bool`, and descriptions
+were literally `"Parameter x"`.
 
----
-
-## 📋 Remaining TODOs
-
-- [ ] Add integration tests with real server
-- [ ] Add GitHub Actions CI/CD
-- [ ] Add OpenAPI/Swagger documentation
-- [ ] Add rate limiting middleware
-- [ ] Add database backend option (SQLite → PostgreSQL)
-- [ ] Add WebSocket support for real-time collaboration
-- [ ] Add plugin system for custom tools
+- Rebuilt on FastMCP 4.1 — schemas now come from real type hints and
+  docstrings.
+- All 68 tools, 6 resources and 3 prompt templates register correctly.
+- Verified over real stdio JSON-RPC (`initialize` → `tools/list`).
+- `create_coordinate_grid_overlay` is no longer registered as a tool (it takes
+  a PIL image object, which a client cannot pass); it stays importable as a
+  helper.
 
 ---
 
-## 📊 Metrics
+## 6. Tests
 
-| Metric | Before | After |
-|--------|--------|-------|
-| `agent_tools.py` lines | 2,670 | Split into 11 modules |
-| Max file size | 2,670 | ~300 avg |
-| Tools registered | 57 | 67 |
-| Test coverage | 0% | Framework ready |
-| Docker support | ❌ | ✅ Multi-stage |
-| Authentication | ❌ | ✅ API Key |
-| Config management | Hardcoded | Environment-based |
+The suite had **21 failures** and, worse, **wrote into the live
+`data/project.json`** — the test fixture patched `Config.PROJECT_FILE`, but the
+tools read a module-level constant captured at import time, so the patch never
+applied. Running the tests mutated the real project (1 room → 6 rooms).
+
+Fixes:
+
+- Paths resolve through `config` at call time → the fixture now isolates the
+  project file. **The live project is never touched by tests.**
+- 10 tool functions were used but never imported (`get_room`, `set_start_room`,
+  `link_door`, `get_cutscene`, …) → imported.
+- Patch targets pointed at names that had moved (`app.run_agent_instruction`
+  → `tools.agent.run_agent_instruction`, `tools.project.PYGAME_PROC` →
+  `tools._core.PYGAME_PROC`, `app.load_env` → `app.config.load_env`).
+- The fixture mocked `PIL` and `numpy` wholesale, which broke the image
+  endpoints; only the Gemini client is mocked now.
+- Asset tests used MagicMock paths that made `shutil.copy2` fail with
+  `SameFileError`; they use real temp files now.
+- Two assertions encoded stale behaviour (the sound cache is keyed by resolved
+  path; `create_or_update_cutscene` seeds two default steps).
+
+**Result: 83 passed, 0 failed** (26% statement coverage over `tools/`,
+`config/` and `sprite_slicer/`; the untested bulk is network-bound AI code).
+
+---
+
+## 7. Docker
+
+The image could not start:
+
+- `ADVENTURE_FORGE_SPRITE_SLICER_PATH` pointed at `/app/tools/sprite_slicer`,
+  which was never copied into the image → `ImportError` at startup.
+- `pip install -r requirements.txt 2>/dev/null || true` **masked install
+  failures**, so a broken dependency set silently produced a broken image.
+- The `dev` stage re-pinned dependencies that are now in `requirements.txt`.
+
+Fixes: the slicer ships with the repo, install failures are fatal, the dev
+stage was simplified, and a `.dockerignore` was added so `.env`, `.venv/` and
+`.git/` never enter the build context.
+
+---
+
+## 8. Repository hygiene
+
+- **Git initialised** (the project had no version control).
+- `.gitignore` (secrets, venvs, caches) and `.env.example` added.
+- `.dockerignore` added.
+- `requirements.txt` repinned to the versions actually in use, and completed
+  with the packages that were missing but required (`scipy`, `pygame-ce`,
+  `fastmcp`).
+
+---
+
+## Still open
+
+- `static/index.html` is 6,112 lines in one file — worth splitting into ES
+  modules, best done separately from behavioural work.
+- `app.py` keeps its own VLM *preview* endpoints (`/api/vlm/describe-prop`,
+  `/api/vlm/generate-dialog`, `/api/vlm/generate-cutscene`). They return JSON
+  for the editor UI instead of writing to `project.json`, so they are not
+  duplicates of the MCP tools, but the prompts overlap.
+- No license file yet.
+- Coverage is concentrated on the deterministic tool layer; the AI/network
+  paths need integration tests against a running server.
