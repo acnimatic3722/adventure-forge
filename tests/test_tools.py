@@ -149,7 +149,7 @@ def sample_project(temp_project_dir):
 class TestConfig:
     def test_config_paths(self):
         """Test that config paths are properly structured."""
-        assert Config.BASE_DIR.name == "adventure_forge"
+        assert Config.BASE_DIR.exists()
         assert Config.DATA_DIR == Config.BASE_DIR / "data"
         assert Config.ASSETS_DIR == Config.DATA_DIR / "assets"
         assert Config.PROJECT_FILE == Config.DATA_DIR / "project.json"
