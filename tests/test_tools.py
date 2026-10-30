@@ -694,6 +694,17 @@ class TestColliderTools:
         result = add_room_collider("test_room", "poly", points_json="{not json")
         assert "error" in result
 
+    def test_add_poly_with_too_few_points(self, sample_project):
+        pts = json.dumps([{"x": 0, "y": 0}, {"x": 10, "y": 0}])
+        result = add_room_collider("test_room", "poly", points_json=pts)
+        assert "error" in result
+        assert list_room_colliders("test_room")["count"] == 0
+
+    def test_add_collider_with_junk_numbers(self, sample_project):
+        result = add_room_collider("test_room", "rect", x="not-a-number")
+        assert "error" in result
+        assert list_room_colliders("test_room")["count"] == 0
+
     def test_add_collider_unknown_room(self, sample_project):
         assert "error" in add_room_collider("nope", "rect")
 
@@ -894,7 +905,9 @@ class TestEventTools:
 # Registry Tests
 # ============================================================================
 
-class TestToolRegistry:
+class TestNewToolRegistry:
+    """The subsystems added in this pass must be wired into the registry."""
+
     def test_new_tools_are_registered(self):
         for name in (
             "list_room_colliders", "add_room_collider", "set_room_colliders", "clear_room_colliders",

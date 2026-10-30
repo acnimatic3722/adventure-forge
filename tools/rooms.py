@@ -200,19 +200,34 @@ def add_room_collider(
             return {"error": f"Invalid points_json: {e}"}
         if not isinstance(points, list):
             return {"error": "points_json must be a JSON array of points."}
+        if len(points) < 3:
+            return {"error": "A polygon collider needs at least 3 points."}
+        try:
+            norm_points = [
+                {"x": int(p.get("x", 0)), "y": int(p.get("y", 0))} for p in points
+            ]
+        except (AttributeError, TypeError, ValueError):
+            return {"error": "Each polygon point needs numeric x and y values."}
         candidate = {
             "id": _clean_collider_id(collider_id or f"poly_{len(colliders) + 1}", taken),
             "type": "poly",
-            "points": [{"x": int(p.get("x", 0)), "y": int(p.get("y", 0))} for p in points],
+            "points": norm_points,
         }
     else:
+        try:
+            rx = int(x)
+            ry = int(y)
+            rw = max(1, int(w))
+            rh = max(1, int(h))
+        except (TypeError, ValueError):
+            return {"error": "Invalid numeric parameters for a rect collider."}
         candidate = {
             "id": _clean_collider_id(collider_id or f"collider_{len(colliders) + 1}", taken),
             "type": "rect",
-            "x": int(x),
-            "y": int(y),
-            "w": max(1, int(w)),
-            "h": max(1, int(h)),
+            "x": rx,
+            "y": ry,
+            "w": rw,
+            "h": rh,
         }
 
     try:

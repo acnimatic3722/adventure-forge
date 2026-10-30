@@ -21,6 +21,22 @@ ROOT = Path(__file__).resolve().parent.parent
 PORT = 8799
 BASE = f"http://127.0.0.1:{PORT}"
 
+# Find a Chrome/Chromium build. Playwright's own download is not required —
+# any system browser works, and GitHub's ubuntu runners ship one.
+CHROME_CANDIDATES = (
+    "/usr/bin/google-chrome-stable",
+    "/usr/bin/google-chrome",
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+)
+
+
+def find_chrome() -> str | None:
+    for path in CHROME_CANDIDATES:
+        if Path(path).exists():
+            return path
+    return None
+
 # Isolate the test from the real project.
 TMP_DATA = Path(tempfile.mkdtemp(prefix="af-ui-smoke-"))
 shutil.copytree(ROOT / "data" / "assets", TMP_DATA / "assets", dirs_exist_ok=True)
@@ -30,7 +46,7 @@ env = os.environ.copy()
 env["ADVENTURE_FORGE_DATA_DIR"] = str(TMP_DATA)
 
 server = subprocess.Popen(
-    [".venv/bin/python", "-m", "uvicorn", "app:app", "--host", "127.0.0.1", "--port", str(PORT)],
+    [sys.executable, "-m", "uvicorn", "app:app", "--host", "127.0.0.1", "--port", str(PORT)],
     cwd=str(ROOT),
     env=env,
     stdout=subprocess.DEVNULL,
@@ -49,10 +65,15 @@ def check(name, cond, detail=""):
 
 
 try:
+    chrome = find_chrome()
+    if not chrome:
+        print("SKIP: no Chrome/Chromium found. Install Chrome to run this suite.")
+        sys.exit(0)
+
     time.sleep(5)
     with sync_playwright() as p:
         browser = p.chromium.launch(
-            executable_path="/usr/bin/google-chrome-stable",
+            executable_path=chrome,
             args=["--no-sandbox", "--disable-dev-shm-usage"],
         )
         page = browser.new_page(viewport={"width": 1600, "height": 1000})
