@@ -20,6 +20,30 @@ from .rooms import (
     update_room_map_position,
     set_room_walkable_polygon,
     set_start_room,
+    list_room_colliders,
+    add_room_collider,
+    set_room_colliders,
+    clear_room_colliders,
+)
+
+from .characters import (
+    list_characters,
+    get_character,
+    create_or_update_character,
+    delete_character,
+    set_player_character,
+    assign_character_to_hotspot,
+)
+
+from .events import (
+    list_events,
+    get_event,
+    create_or_update_event,
+    delete_event,
+    add_event_action,
+    remove_event_action,
+    set_event_actions,
+    migrate_legacy_triggers,
 )
 
 from .hotspots import (
@@ -120,6 +144,24 @@ TOOLS_LIST = [
     update_room_map_position,
     set_room_walkable_polygon,
     set_start_room,
+    list_room_colliders,
+    add_room_collider,
+    set_room_colliders,
+    clear_room_colliders,
+    list_characters,
+    get_character,
+    create_or_update_character,
+    delete_character,
+    set_player_character,
+    assign_character_to_hotspot,
+    list_events,
+    get_event,
+    create_or_update_event,
+    delete_event,
+    add_event_action,
+    remove_event_action,
+    set_event_actions,
+    migrate_legacy_triggers,
     list_hotspots,
     get_hotspot,
     create_or_update_hotspot,

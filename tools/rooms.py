@@ -3,6 +3,7 @@ AdventureForge — Rooms & World Map MCP Tools
 """
 import json
 from typing import Any
+from engine_geometry import normalize_collider
 from ._core import (
     _load_proj,
     _save_proj,
@@ -132,3 +133,145 @@ def set_start_room(room_id: str) -> dict[str, Any]:
     proj["start_room"] = room_id
     _save_proj(proj)
     return {"status": "ok", "start_room": room_id}
+
+
+# ============================================================================
+# COLLISION GEOMETRY
+#
+# Colliders are the *negative* space of a room: walls, furniture and other
+# things the characters must not walk through. The room's walkable polygon
+# says where they *may* go; colliders carve obstacles out of that area.
+# ============================================================================
+
+def _clean_collider_id(raw: str, taken: set[str]) -> str:
+    """Build a unique, safe collider id."""
+    base = "".join(ch for ch in str(raw or "").lower() if ch.isalnum() or ch == "_")
+    base = base or "collider"
+    candidate = base
+    n = 2
+    while candidate in taken:
+        candidate = f"{base}_{n}"
+        n += 1
+    return candidate
+
+
+def list_room_colliders(room_id: str) -> dict[str, Any]:
+    """List the collision shapes (walls, furniture, blocked space) in a room."""
+    proj = _load_proj()
+    room = next((r for r in proj.get("rooms", []) if r.get("id") == room_id), None)
+    if not room:
+        return {"error": f"Room '{room_id}' not found."}
+    colliders = room.get("colliders") or []
+    return {
+        "room_id": room_id,
+        "count": len(colliders),
+        "colliders": colliders,
+    }
+
+
+def add_room_collider(
+    room_id: str,
+    collider_type: str = "rect",
+    x: int = 0,
+    y: int = 0,
+    w: int = 100,
+    h: int = 100,
+    points_json: str = "",
+    collider_id: str = "",
+) -> dict[str, Any]:
+    """Add a blocked area (wall, furniture, obstacle) to a room.
+
+    Use collider_type 'rect' with x/y/w/h for a box, or 'poly' with
+    points_json (a JSON array of {"x":..,"y":..} points) for an arbitrary
+    shape. Characters slide along colliders instead of stopping dead.
+    """
+    proj = _load_proj()
+    room = next((r for r in proj.get("rooms", []) if r.get("id") == room_id), None)
+    if not room:
+        return {"error": f"Room '{room_id}' not found."}
+
+    colliders = room.get("colliders") or []
+    taken = {str(c.get("id") or "") for c in colliders}
+
+    if collider_type == "poly":
+        try:
+            points = json.loads(points_json) if points_json else []
+        except Exception as e:
+            return {"error": f"Invalid points_json: {e}"}
+        if not isinstance(points, list):
+            return {"error": "points_json must be a JSON array of points."}
+        candidate = {
+            "id": _clean_collider_id(collider_id or f"poly_{len(colliders) + 1}", taken),
+            "type": "poly",
+            "points": [{"x": int(p.get("x", 0)), "y": int(p.get("y", 0))} for p in points],
+        }
+    else:
+        candidate = {
+            "id": _clean_collider_id(collider_id or f"collider_{len(colliders) + 1}", taken),
+            "type": "rect",
+            "x": int(x),
+            "y": int(y),
+            "w": max(1, int(w)),
+            "h": max(1, int(h)),
+        }
+
+    try:
+        candidate = normalize_collider(candidate)
+    except ValueError as e:
+        return {"error": str(e)}
+
+    colliders.append(candidate)
+    room["colliders"] = colliders
+    _save_proj(proj)
+    return {"status": "ok", "room_id": room_id, "collider": candidate, "count": len(colliders)}
+
+
+def set_room_colliders(room_id: str, colliders_json: str) -> dict[str, Any]:
+    """Replace every collision shape in a room with the supplied list.
+
+    colliders_json is a JSON array of objects, each either
+    {"type":"rect","x":..,"y":..,"w":..,"h":..} or
+    {"type":"poly","points":[{"x":..,"y":..}, ...]}.
+    """
+    proj = _load_proj()
+    room = next((r for r in proj.get("rooms", []) if r.get("id") == room_id), None)
+    if not room:
+        return {"error": f"Room '{room_id}' not found."}
+
+    try:
+        raw = json.loads(colliders_json)
+    except Exception as e:
+        return {"error": f"Invalid colliders_json: {e}"}
+    if not isinstance(raw, list):
+        return {"error": "colliders_json must be a JSON array of collider objects."}
+
+    taken: set[str] = set()
+    out: list[dict[str, Any]] = []
+    for idx, item in enumerate(raw):
+        if not isinstance(item, dict):
+            return {"error": f"Collider #{idx + 1} is not an object."}
+        item = dict(item)
+        item.setdefault("id", f"collider_{idx + 1}")
+        item["id"] = _clean_collider_id(item.get("id", ""), taken)
+        try:
+            norm = normalize_collider(item)
+        except ValueError as e:
+            return {"error": f"Collider #{idx + 1}: {e}"}
+        taken.add(norm["id"])
+        out.append(norm)
+
+    room["colliders"] = out
+    _save_proj(proj)
+    return {"status": "ok", "room_id": room_id, "count": len(out), "colliders": out}
+
+
+def clear_room_colliders(room_id: str) -> dict[str, Any]:
+    """Remove every collision shape from a room, making the whole floor walkable."""
+    proj = _load_proj()
+    room = next((r for r in proj.get("rooms", []) if r.get("id") == room_id), None)
+    if not room:
+        return {"error": f"Room '{room_id}' not found."}
+    removed = len(room.get("colliders") or [])
+    room["colliders"] = []
+    _save_proj(proj)
+    return {"status": "ok", "room_id": room_id, "removed": removed}

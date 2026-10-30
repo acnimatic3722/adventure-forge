@@ -3,6 +3,7 @@ AdventureForge — Branching Dialog Trees MCP Tools
 """
 import json
 from typing import Any
+from engine_characters import build_character_registry, resolve_player_character_id
 from ._core import (
     _load_proj,
     _save_proj,
@@ -203,7 +204,7 @@ def ai_generate_dialog_tree(
     attach_to_hotspot: str = "",
     set_as_partner_dialog: bool = False
 ) -> dict[str, Any]:
-    """Use Gemini LLM to write a multi-node branching LucasArts Dialog Tree, save it to the project, and optionally attach it to a room hotspot or Partner."""
+    """Use Gemini LLM to write a multi-node branching Dialog Tree, save it to the project, and optionally attach it to a room hotspot or Partner."""
     load_env()
     client = genai.Client()
     proj = _load_proj()
@@ -211,11 +212,19 @@ def ai_generate_dialog_tree(
     room_names = [r.get("name", r.get("id", "")) for r in proj.get("rooms", [])]
     item_names = [f"{i.get('name')} ({i.get('id')})" for i in proj.get("items", [])]
 
-    prompt = f"""You are a LucasArts adventure writer (Sam & Max, Monkey Island).
+    registry = build_character_registry(proj)
+    player_id = resolve_player_character_id(proj)
+    player_name = (registry.get(player_id) or {}).get("name") or "the player character"
+    speaker_tokens = ["npc", "player"] + [
+        cid for cid, c in registry.items() if c.get("role") == "companion"
+    ]
+
+    prompt = f"""You are a point-and-click adventure writer.
 Create a branching Dialog Tree (id: "{clean_id}") for speaking with "{npc_name}".
 Topic / Instructions: {topic_prompt}
 Rooms in game: {", ".join(room_names)}
 Items in game: {", ".join(item_names)}
+The player character is "{player_name}". Valid "speaker" values are {", ".join(f'"{s}"' for s in speaker_tokens)} — use a character id when another character speaks.
 
 Return ONLY valid JSON matching:
 {{

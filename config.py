@@ -40,7 +40,12 @@ class Config:
     BASE_DIR: Path = Path(__file__).resolve().parent
 
     # Data directories
-    DATA_DIR: Path = BASE_DIR / "data"
+    # ADVENTURE_FORGE_DATA_DIR lets a test (or a second game on the same
+    # checkout) point at an entirely separate data directory without
+    # touching the real project.
+    DATA_DIR: Path = Path(
+        os.getenv("ADVENTURE_FORGE_DATA_DIR", str(BASE_DIR / "data"))
+    ).expanduser().resolve()
     ASSETS_DIR: Path = DATA_DIR / "assets"
     STATIC_DIR: Path = BASE_DIR / "static"
 

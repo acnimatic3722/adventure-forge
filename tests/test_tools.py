@@ -55,6 +55,24 @@ from tools import (
     list_sprites,
     get_sprite,
     list_assets,
+    list_room_colliders,
+    add_room_collider,
+    set_room_colliders,
+    clear_room_colliders,
+    list_characters,
+    get_character,
+    create_or_update_character,
+    delete_character,
+    set_player_character,
+    assign_character_to_hotspot,
+    list_events,
+    get_event,
+    create_or_update_event,
+    delete_event,
+    add_event_action,
+    remove_event_action,
+    set_event_actions,
+    migrate_legacy_triggers,
     TOOLS_LIST,
     TOOLS_BY_NAME,
 )
@@ -637,6 +655,261 @@ class TestPygameProcess:
         result = stop_pygame_game()
         assert result["status"] == "stopped"
         assert result["pid"] == 12345
+
+
+# ============================================================================
+# Collision Geometry Tool Tests
+# ============================================================================
+
+class TestColliderTools:
+    """The MCP surface for marking blocked space (walls, furniture)."""
+
+    def test_list_colliders_on_empty_room(self, sample_project):
+        result = list_room_colliders("test_room")
+        assert result["count"] == 0
+        assert result["colliders"] == []
+
+    def test_list_colliders_unknown_room(self, sample_project):
+        assert "error" in list_room_colliders("nope")
+
+    def test_add_rect_collider(self, sample_project):
+        result = add_room_collider("test_room", "rect", x=100, y=200, w=300, h=40)
+        assert result["status"] == "ok"
+        collider = result["collider"]
+        assert collider["type"] == "rect"
+        assert collider["x"] == 100
+        assert collider["w"] == 300
+
+        stored = list_room_colliders("test_room")
+        assert stored["count"] == 1
+
+    def test_add_poly_collider(self, sample_project):
+        pts = json.dumps([{"x": 0, "y": 0}, {"x": 100, "y": 0}, {"x": 50, "y": 100}])
+        result = add_room_collider("test_room", "poly", points_json=pts)
+        assert result["status"] == "ok"
+        assert result["collider"]["type"] == "poly"
+        assert len(result["collider"]["points"]) == 3
+
+    def test_add_poly_with_bad_json(self, sample_project):
+        result = add_room_collider("test_room", "poly", points_json="{not json")
+        assert "error" in result
+
+    def test_add_collider_unknown_room(self, sample_project):
+        assert "error" in add_room_collider("nope", "rect")
+
+    def test_collider_ids_are_unique(self, sample_project):
+        add_room_collider("test_room", "rect", collider_id="wall")
+        add_room_collider("test_room", "rect", collider_id="wall")
+        colliders = list_room_colliders("test_room")["colliders"]
+        ids = [c["id"] for c in colliders]
+        assert len(set(ids)) == 2
+
+    def test_set_room_colliders_replaces_all(self, sample_project):
+        add_room_collider("test_room", "rect")
+        payload = json.dumps([
+            {"type": "rect", "x": 1, "y": 2, "w": 3, "h": 4},
+            {"type": "poly", "points": [{"x": 0, "y": 0}, {"x": 9, "y": 0}, {"x": 9, "y": 9}]},
+        ])
+        result = set_room_colliders("test_room", payload)
+        assert result["count"] == 2
+        assert list_room_colliders("test_room")["count"] == 2
+
+    def test_set_room_colliders_rejects_junk(self, sample_project):
+        assert "error" in set_room_colliders("test_room", "not json")
+        assert "error" in set_room_colliders("test_room", json.dumps({"a": 1}))
+        assert "error" in set_room_colliders("test_room", json.dumps([{"type": "blob"}]))
+
+    def test_clear_room_colliders(self, sample_project):
+        add_room_collider("test_room", "rect")
+        result = clear_room_colliders("test_room")
+        assert result["removed"] == 1
+        assert list_room_colliders("test_room")["count"] == 0
+
+
+# ============================================================================
+# Character Tool Tests
+# ============================================================================
+
+class TestCharacterTools:
+    """The MCP surface for the generic character roster."""
+
+    def test_list_characters_seeds_from_legacy(self, sample_project):
+        result = list_characters()
+        assert result["count"] == 1
+        assert result["characters"][0]["sprite"] == "hero"
+        assert result["characters"][0]["is_player"] is True
+
+    def test_create_character(self, sample_project):
+        result = create_or_update_character("npc_mira", name="Mira", sprite="mira", role="npc")
+        assert result["status"] == "ok"
+        assert result["character"]["name"] == "Mira"
+        assert result["character"]["role"] == "npc"
+
+    def test_create_companion_defaults_to_following(self, sample_project):
+        create_or_update_character("pal", name="Bibi", sprite="bibi", role="companion")
+        chars = {c["id"]: c for c in list_characters()["characters"]}
+        assert chars["pal"]["follow"] is True
+        assert chars["pal"]["is_companion"] is True
+
+    def test_update_character_keeps_other_fields(self, sample_project):
+        create_or_update_character("pal", name="Bibi", sprite="bibi", role="companion")
+        create_or_update_character("pal", dialog_id="dlg_bibi")
+        char = get_character("pal")["character"]
+        assert char["name"] == "Bibi"
+        assert char["dialog_id"] == "dlg_bibi"
+
+    def test_set_player_character(self, sample_project):
+        create_or_update_character("hero2", name="Vex", sprite="vex", role="npc")
+        result = set_player_character("hero2")
+        assert result["status"] == "ok"
+        assert list_characters()["player_character"] == "hero2"
+
+    def test_set_player_character_unknown(self, sample_project):
+        assert "error" in set_player_character("ghost")
+
+    def test_delete_character(self, sample_project):
+        create_or_update_character("temp", name="Temp")
+        result = delete_character("temp")
+        assert result["deleted"] == "temp"
+        assert "error" in get_character("temp")
+
+    def test_delete_character_detaches_hotspots(self, sample_project):
+        create_or_update_hotspot("test_room", "npc1", name="Guard", hs_type="npc")
+        create_or_update_character("guard", name="Guard", role="npc")
+        assign_character_to_hotspot("test_room", "npc1", "guard")
+        result = delete_character("guard")
+        assert result["detached_hotspots"] == 1
+        room = get_room("test_room")["room"]
+        assert "character_id" not in room["hotspots"][0]
+
+    def test_assign_character_to_hotspot(self, sample_project):
+        create_or_update_hotspot("test_room", "npc1", name="Guard", hs_type="npc")
+        create_or_update_character("guard", name="Guard", sprite="guard_sheet", role="npc")
+        result = assign_character_to_hotspot("test_room", "npc1", "guard")
+        assert result["status"] == "ok"
+        room = get_room("test_room")["room"]
+        hs = room["hotspots"][0]
+        assert hs["character_id"] == "guard"
+        assert hs["sprite_id"] == "guard_sheet"
+
+    def test_assign_character_unknown_hotspot(self, sample_project):
+        assert "error" in assign_character_to_hotspot("test_room", "nope", "x")
+
+    def test_legacy_set_character_roles_updates_registry(self, sample_project):
+        from tools import set_character_roles
+        result = set_character_roles(player_sprite="newhero")
+        assert result["player_sprite"] == "newhero"
+        assert list_characters()["player_character"]
+
+
+# ============================================================================
+# Event Tool Tests
+# ============================================================================
+
+class TestEventTools:
+    """The MCP surface for the event system."""
+
+    def test_list_events_empty(self, sample_project):
+        result = list_events()
+        assert result["count"] == 0
+        assert "on_enter_room" in result["trigger_types"]
+        assert "set_flag" in result["action_types"]
+
+    def test_create_event(self, sample_project):
+        result = create_or_update_event(
+            "ev_intro", name="Intro", trigger_type="on_enter_room", trigger_target="test_room"
+        )
+        assert result["status"] == "ok"
+        assert result["event"]["trigger"]["target"] == "test_room"
+        assert list_events()["count"] == 1
+
+    def test_get_event(self, sample_project):
+        create_or_update_event("ev1", name="One")
+        assert get_event("ev1")["event"]["name"] == "One"
+        assert "error" in get_event("missing")
+
+    def test_update_event_preserves_actions(self, sample_project):
+        create_or_update_event("ev1", name="One")
+        add_event_action("ev1", "set_flag", "flag_a")
+        create_or_update_event("ev1", name="Renamed")
+        event = get_event("ev1")["event"]
+        assert event["name"] == "Renamed"
+        assert len(event["actions"]) == 1
+
+    def test_add_and_remove_action(self, sample_project):
+        create_or_update_event("ev1")
+        add_event_action("ev1", "set_flag", "a")
+        add_event_action("ev1", "play_cutscene", "intro")
+        event = get_event("ev1")["event"]
+        assert len(event["actions"]) == 2
+        remove_event_action("ev1", 0)
+        event = get_event("ev1")["event"]
+        assert len(event["actions"]) == 1
+        assert event["actions"][0]["type"] == "play_cutscene"
+
+    def test_remove_action_out_of_range(self, sample_project):
+        create_or_update_event("ev1")
+        assert "error" in remove_event_action("ev1", 5)
+
+    def test_add_action_unknown_type(self, sample_project):
+        create_or_update_event("ev1")
+        assert "error" in add_event_action("ev1", "explode", "x")
+
+    def test_add_action_to_missing_event(self, sample_project):
+        assert "error" in add_event_action("ghost", "set_flag", "x")
+
+    def test_set_event_actions(self, sample_project):
+        create_or_update_event("ev1")
+        payload = json.dumps([
+            {"type": "set_flag", "value": "a"},
+            {"type": "show_text", "value": "Hello"},
+        ])
+        result = set_event_actions("ev1", payload)
+        assert result["action_count"] == 2
+        assert "error" in set_event_actions("ev1", "nope")
+
+    def test_delete_event(self, sample_project):
+        create_or_update_event("ev1")
+        result = delete_event("ev1")
+        assert result["deleted"] == 1
+        assert list_events()["count"] == 0
+
+    def test_migrate_legacy_triggers(self, sample_project):
+        create_or_update_cutscene("cs1", "Intro Cutscene", trigger_type="on_enter_room", trigger_target="test_room")
+        result = migrate_legacy_triggers()
+        assert result["migrated"] == 1
+        events = list_events()["events"]
+        assert events[0]["trigger"]["type"] == "on_enter_room"
+        assert events[0]["actions"][0]["type"] == "play_cutscene"
+
+    def test_migrate_legacy_triggers_is_idempotent(self, sample_project):
+        create_or_update_cutscene("cs1", "Intro", trigger_type="on_enter_room", trigger_target="test_room")
+        migrate_legacy_triggers()
+        second = migrate_legacy_triggers()
+        assert second["migrated"] == 0
+        assert list_events()["count"] == 1
+
+
+# ============================================================================
+# Registry Tests
+# ============================================================================
+
+class TestToolRegistry:
+    def test_new_tools_are_registered(self):
+        for name in (
+            "list_room_colliders", "add_room_collider", "set_room_colliders", "clear_room_colliders",
+            "list_characters", "create_or_update_character", "set_player_character",
+            "list_events", "create_or_update_event", "add_event_action", "migrate_legacy_triggers",
+        ):
+            assert name in TOOLS_BY_NAME, f"{name} is not registered"
+
+    def test_no_duplicate_tools(self):
+        names = [fn.__name__ for fn in TOOLS_LIST]
+        assert len(names) == len(set(names))
+
+    def test_every_tool_has_a_docstring(self):
+        for fn in TOOLS_LIST:
+            assert fn.__doc__, f"{fn.__name__} has no docstring"
 
 
 # ============================================================================

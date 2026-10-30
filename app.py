@@ -15,12 +15,13 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Depends
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.security import APIKeyHeader
 
 # Import config first
 from config import config
+from engine_characters import build_character_registry, resolve_player_character_id
 
 # Sprite slicer (CV segmentation + Gemini VLM animation mapping).
 # Ships with the repo; ADVENTURE_FORGE_SPRITE_SLICER_PATH can point elsewhere.
@@ -169,6 +170,20 @@ def index():
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/favicon.ico")
+def favicon():
+    """Inline SVG favicon — otherwise the browser tab shows a broken icon."""
+    svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+        '<rect width="64" height="64" rx="14" fill="#1b2030"/>'
+        '<path d="M14 48 L32 12 L50 48 Z" fill="none" stroke="#f5c451" '
+        'stroke-width="5" stroke-linejoin="round"/>'
+        '<circle cx="32" cy="37" r="5.5" fill="#38b6ff"/>'
+        "</svg>"
+    )
+    return Response(content=svg, media_type="image/svg+xml")
+
+
 @app.get("/generator")
 @app.get("/playground")
 def generator_page():
@@ -188,8 +203,18 @@ async def update_project(payload: dict[str, Any], api_key: str = Depends(verify_
     for k, v in existing.get("sprites", {}).items():
         if k not in payload["sprites"]:
             payload["sprites"][k] = v
-    if "partner_sprite" not in payload and "partner_sprite" in existing:
-        payload["partner_sprite"] = existing["partner_sprite"]
+
+    # Preserve the legacy sprite slots so older builds keep working. The
+    # character roster is the source of truth, but these three keys are still
+    # read by the runtime and by external tools.
+    for legacy_key in ("player_sprite", "partner_sprite", "partner_dialog_id"):
+        if legacy_key not in payload and legacy_key in existing:
+            payload[legacy_key] = existing[legacy_key]
+
+    if "characters" not in payload and "characters" in existing:
+        payload["characters"] = existing["characters"]
+    if "events" not in payload and "events" in existing:
+        payload["events"] = existing["events"]
     if "dialogs" not in payload:
         payload["dialogs"] = existing.get("dialogs", [])
     if "cutscenes" not in payload:
@@ -487,6 +512,11 @@ async def vlm_describe_prop(payload: dict[str, Any], api_key: str = Depends(veri
     prop_icon = payload.get("prop_icon", "")
     rect = payload.get("rect") or {"x": 100, "y": 100, "w": 120, "h": 120}
 
+    proj = load_project()
+    registry = build_character_registry(proj)
+    player_id = resolve_player_character_id(proj)
+    player_name = (registry.get(player_id) or {}).get("name") or "the player character"
+
     contents: list[Any] = []
 
     # 1. If the prop has its own uploaded sprite/icon, include it
@@ -521,14 +551,15 @@ async def vlm_describe_prop(payload: dict[str, Any], api_key: str = Depends(veri
         except Exception:
             pass
 
-    prompt = f"""You are a witty classic LucasArts point-and-click adventure game writer (in the style of Sam & Max / Day of the Tentacle / Monkey Island).
-The player is in a room called "{room_name}".
+    prompt = f"""You are a witty classic point-and-click adventure game writer (the style of late-90s comedic adventures).
+The player character is "{player_name}".
+They are in a room called "{room_name}".
 The designer placed a prop hotspot currently labeled "{prop_name}".
 {"Look at the close-up cropped image of the prop and the full room image where the prop is highlighted inside a red box." if contents else "Generate a description based on the room and prop name."}
 
 Identify what the object inside the highlighted region is, and write:
 1. "suggested_name": A concise 2-4 word display name for this object (e.g. "Dusty Gramophone", "Rain-Streaked Window", "Suspicious Gargoyle").
-2. "look_text": A flavorful, witty 1-2 sentence "Look at" dialogue line spoken by the detective protagonist when inspecting this object.
+2. "look_text": A flavorful, witty 1-2 sentence "Look at" dialogue line spoken by {player_name} when inspecting this object.
 3. "use_text": A short 1 sentence response spoken if the player tries to "Use" it directly without an item.
 
 Return ONLY valid JSON matching:
@@ -554,27 +585,34 @@ Return ONLY valid JSON matching:
 
 @app.post("/api/vlm/generate-dialog")
 async def vlm_generate_dialog(payload: dict[str, Any], api_key: str = Depends(verify_api_key)):
-    """Use Gemini LLM to generate a classic LucasArts branching dialog tree."""
+    """Use Gemini LLM to generate a branching dialog tree."""
     config.load_env()
     client = genai.Client()
 
-    prompt_hint = payload.get("prompt", "A witty conversation about the mystery in the hotel.")
-    npc_name = payload.get("npc_name", "Max")
+    prompt_hint = payload.get("prompt", "A witty conversation that moves the story forward.")
     dialog_id = payload.get("dialog_id", "dialog_1")
     proj = load_project()
     room_names = [r.get("name", r.get("id", "")) for r in proj.get("rooms", [])]
     item_names = [f"{i.get('name')} ({i.get('id')})" for i in proj.get("items", [])]
 
-    prompt = f"""You are a senior LucasArts adventure game writer (Sam & Max Hit the Road, Day of the Tentacle, Monkey Island).
+    registry = build_character_registry(proj)
+    npc_name = payload.get("npc_name") or next(
+        (c["name"] for c in registry.values() if c.get("role") == "npc"), ""
+    ) or "Guide"
+    speaker_tokens = ["npc", "player"] + [
+        cid for cid, c in registry.items() if c.get("role") == "companion"
+    ]
+
+    prompt = f"""You are a senior point-and-click adventure game writer.
 Create a branching Dialog Tree with ID "{dialog_id}" for a conversation with "{npc_name}".
 User prompt / situation: {prompt_hint}
-Rooms in game: {", ".join(room_names) or "Hotel Reception, Observatory"}
-Items in game: {", ".join(item_names) or "pizza, star_lens"}
+Rooms in game: {", ".join(room_names) or "(none yet)"}
+Items in game: {", ".join(item_names) or "(none yet)"}
 
 Build 3 to 5 connected dialog nodes starting at root_node "root".
 Each node has:
 - "id": string (e.g. "root", "ask_clues", "joke_branch", "secret_info")
-- "speaker": "npc" | "partner" | "player"
+- "speaker": one of {", ".join(f'"{s}"' for s in speaker_tokens)} — "npc" for the person being talked to, "player" for the player's own lines, and a character id for anyone else speaking.
 - "npc_text": The line spoken when entering this node (1-2 witty sentences).
 - "options": array of 2 to 4 player dialogue choices. Each option has:
   - "text": What the player says
@@ -626,29 +664,43 @@ Return ONLY valid JSON matching:
 
 @app.post("/api/vlm/generate-cutscene")
 async def vlm_generate_cutscene(payload: dict[str, Any], api_key: str = Depends(verify_api_key)):
-    """Use Gemini LLM to generate a choreographed LucasArts cutscene timeline."""
+    """Use Gemini LLM to generate a choreographed cutscene timeline."""
     config.load_env()
     client = genai.Client()
 
-    prompt_hint = payload.get("prompt", "Sam and Max walk into the room, look around, and banter about the mystery.")
-    room_id = payload.get("room_id", "reception")
+    prompt_hint = payload.get("prompt", "The characters walk into the room, look around, and talk about the situation.")
+    room_id = payload.get("room_id", "")
     proj = load_project()
     room_ids = [r.get("id", "") for r in proj.get("rooms", [])]
 
-    prompt = f"""You are a LucasArts cutscene director (Sam & Max, Monkey Island).
-Create a choreographed cutscene sequence taking place primarily in room "{room_id}" (available rooms: {", ".join(room_ids)}).
+    registry = build_character_registry(proj)
+    player_id = resolve_player_character_id(proj)
+    player_name = (registry.get(player_id) or {}).get("name") or "the player character"
+    companions = [
+        (cid, c.get("name", cid))
+        for cid, c in registry.items()
+        if c.get("role") == "companion"
+    ]
+    actor_tokens = ["player"] + [cid for cid, _ in companions]
+    actor_hint = ", ".join(
+        [f'"player" ({player_name})'] + [f'"{cid}" ({name})' for cid, name in companions]
+    ) or '"player" (the player character)'
+
+    prompt = f"""You are a point-and-click adventure cutscene director.
+Create a choreographed cutscene sequence taking place primarily in room "{room_id}" (available rooms: {", ".join(room_ids) or "(none yet)"}).
 User prompt / scene description: {prompt_hint}
 
+Available actors: {actor_hint}
 Available step types:
 1. {{"type": "fade", "effect": "fade_in" | "fade_out" | "flash_white" | "shake", "duration": 0.8}}
-2. {{"type": "walk", "actor": "player" | "partner", "x": 300..950, "y": 490..650}}
-3. {{"type": "say", "actor": "player" | "partner" | "narrator", "text": "Witty dialogue line", "duration": 3.5}}
+2. {{"type": "walk", "actor": {", ".join(f'"{a}"' for a in actor_tokens)}, "x": 300..950, "y": 490..650}}
+3. {{"type": "say", "actor": {", ".join(f'"{a}"' for a in actor_tokens)} | "narrator", "text": "Dialogue line", "duration": 3.5}}
 4. {{"type": "wait", "duration": 1.0}}
-5. {{"type": "play_anim", "actor": "player" | "partner", "anim": "walk_down", "duration": 1.2}}
+5. {{"type": "play_anim", "actor": {", ".join(f'"{a}"' for a in actor_tokens)}, "anim": "walk_down", "duration": 1.2}}
 6. {{"type": "change_room", "room_id": "{room_id}", "x": 600, "y": 560}}
 7. {{"type": "set_flag", "flag": "flag_name"}}
 
-Create 5 to 9 cinematic steps that tell a fun mini-scene with movement and banter between "player" (Sam) and "partner" (Max).
+Create 5 to 9 cinematic steps that tell a fun mini-scene with movement and banter.
 Return ONLY valid JSON matching:
 {{
   "name": "string",

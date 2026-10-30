@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """
 AdventureForge — Pygame Point-and-Click Runtime Engine
-Reads data/project.json and launches a playable LucasArts-style adventure window
-with full support for Branching Dialog Trees and Choreographed Cutscenes.
+Reads data/project.json and launches a playable classic point-and-click
+adventure window with full support for Branching Dialog Trees,
+Choreographed Cutscenes, Collision Geometry, a Character Roster and an
+Event/Trigger system.
 """
 
 import os
@@ -16,6 +18,33 @@ from typing import Any
 # Import config first
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from config import config
+
+# Shared, dependency-free subsystems. Keeping collision maths, the character
+# registry and the event model in their own modules means they can be unit
+# tested without a display, and the MCP tools can use exactly the same rules
+# as the runtime.
+from engine_geometry import (  # noqa: E402
+    BLOCKED_ARRIVE_DISTANCE,
+    DEFAULT_COLLISION_RADIUS,
+    collider_blocks,
+    nearest_free_point,
+    normalize_collider,
+    point_blocked,
+    point_in_poly,
+    resolve_movement,
+)
+from engine_characters import (  # noqa: E402
+    build_character_registry,
+    character_color,
+    companion_character_ids,
+    resolve_player_character_id,
+)
+from engine_events import (  # noqa: E402
+    event_matches,
+    migrate_cutscene_triggers,
+    normalize_events,
+    sort_events,
+)
 
 # Set DISPLAY if launched from web backend without display env
 if "DISPLAY" not in os.environ:
@@ -48,25 +77,6 @@ def resolve_asset_path(web_path: str) -> Path:
     if clean.startswith("assets/"):
         return DATA_DIR / clean
     return DATA_DIR / "assets" / clean
-
-
-def point_in_poly(x: float, y: float, poly: list[dict]) -> bool:
-    if not poly or len(poly) < 3:
-        return True
-    inside = False
-    n = len(poly)
-    p1x, p1y = poly[0]["x"], poly[0]["y"]
-    for i in range(1, n + 1):
-        p2x, p2y = poly[i % n]["x"], poly[i % n]["y"]
-        if y > min(p1y, p2y):
-            if y <= max(p1y, p2y):
-                if x <= max(p1x, p2x):
-                    if p1y != p2y:
-                        xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
-                    if p1x == p2x or x <= xinters:
-                        inside = not inside
-        p1x, p1y = p2x, p2y
-    return inside
 
 
 def clamp_to_poly_bounds(x: float, y: float, poly: list[dict]) -> tuple[float, float]:
@@ -273,6 +283,11 @@ class AdventureRuntime:
         self.played_cutscenes: set[str] = set()
         self.used_dialog_options: set[str] = set()
 
+        # Event system — the single dispatch mechanism for triggers.
+        self.fired_events: set[str] = set()
+        self.event_queue: list[dict[str, Any]] = []
+        self.events: list[dict[str, Any]] = self._build_event_list()
+
         self.item_icons: dict[str, pygame.Surface] = {}
         for it_id, it in self.items_by_id.items():
             p = resolve_asset_path(it.get("icon", ""))
@@ -288,19 +303,41 @@ class AdventureRuntime:
         for sp_id, sp_cfg in self.project.get("sprites", {}).items():
             self.sprite_anims[sp_id] = CharacterAnim(sp_cfg)
 
-        sprite_key = self.project.get("player_sprite", "sam")
+        # ------------------------------------------------------------------
+        # Characters — a generic roster, not "the player and his buddy".
+        # ------------------------------------------------------------------
+        self.companions: list[dict[str, Any]] = []
+        self.character_registry = build_character_registry(self.project)
+        self.player_char_id = resolve_player_character_id(self.project)
+
+        player_char = self.character_registry.get(self.player_char_id, {})
+        sprite_key = player_char.get("sprite") or self.project.get("player_sprite", "")
         self.player_anim = self.sprite_anims.get(
             sprite_key,
             CharacterAnim(self.project.get("sprites", {}).get(sprite_key, {}))
         )
-        self.player_name = self.project.get("sprites", {}).get(sprite_key, {}).get("name", "Sam").split("(")[0].strip() or "Sam"
+        self.player_name = player_char.get("name") or "Player"
 
-        partner_key = self.project.get("partner_sprite", "")
-        self.partner_anim: CharacterAnim | None = None
-        self.partner_name = "Partner"
-        if partner_key and partner_key in self.sprite_anims:
-            self.partner_anim = self.sprite_anims[partner_key]
-            self.partner_name = self.project.get("sprites", {}).get(partner_key, {}).get("name", "Max").split("(")[0].strip() or "Max"
+        for cid in companion_character_ids(self.character_registry):
+            ch = self.character_registry[cid]
+            self.companions.append({
+                "id": cid,
+                "name": ch["name"],
+                "dialog_id": ch.get("dialog_id", ""),
+                "anim": self.sprite_anims.get(ch["sprite"]) if ch["sprite"] else None,
+                "color": character_color(ch),
+                "x": 220.0,
+                "y": 570.0,
+                "target_x": None,
+                "target_y": None,
+                "speed": ch["follow_speed"],
+                "move_dir": "down",
+                "is_moving": False,
+                "override_anim": "",
+                "facing_left": False,
+                "follow": ch["follow"],
+                "follow_distance": ch["follow_distance"],
+            })
 
         self.player_x = 300.0
         self.player_y = 560.0
@@ -310,15 +347,9 @@ class AdventureRuntime:
         self.facing_left = False
         self.move_dir = "down"
         self.player_override_anim: str = ""
-
-        self.partner_x = 220.0
-        self.partner_y = 570.0
-        self.partner_target_x: float | None = None
-        self.partner_target_y: float | None = None
-        self.partner_speed = 245.0
-        self.partner_move_dir = "down"
-        self.partner_is_moving = False
-        self.partner_override_anim: str = ""
+        self.collision_radius = DEFAULT_COLLISION_RADIUS
+        self._blocked_timer = 0.0
+        self._blocked_notified = False
 
         self.anim_timer = 0.0
 
@@ -358,6 +389,140 @@ class AdventureRuntime:
             self.start_cutscene(start_cutscene_override, force=True)
         elif start_dialog_override and start_dialog_override in self.dialogs_by_id:
             self.start_dialog(start_dialog_override)
+
+        # Boot-time triggers. The queue defers them until the stage is clear.
+        self.fire_event("on_game_start")
+
+    # ------------------------------------------------------------------
+    # Backwards-compatible "partner" accessors.
+    #
+    # Older projects (and older cutscenes) assume exactly one follower.
+    # These properties proxy to the first companion so every existing call
+    # site keeps working, while the engine underneath is free to follow
+    # several characters at once.
+    # ------------------------------------------------------------------
+    @property
+    def _primary_companion(self) -> dict[str, Any] | None:
+        return self.companions[0] if self.companions else None
+
+    @property
+    def partner_anim(self):
+        c = self._primary_companion
+        return c["anim"] if c else None
+
+    @property
+    def partner_name(self) -> str:
+        c = self._primary_companion
+        return c["name"] if c else "Companion"
+
+    @property
+    def partner_x(self) -> float:
+        c = self._primary_companion
+        return float(c["x"]) if c else 0.0
+
+    @partner_x.setter
+    def partner_x(self, value: float) -> None:
+        c = self._primary_companion
+        if c is not None:
+            c["x"] = float(value)
+
+    @property
+    def partner_y(self) -> float:
+        c = self._primary_companion
+        return float(c["y"]) if c else 0.0
+
+    @partner_y.setter
+    def partner_y(self, value: float) -> None:
+        c = self._primary_companion
+        if c is not None:
+            c["y"] = float(value)
+
+    @property
+    def partner_target_x(self) -> float | None:
+        c = self._primary_companion
+        return c["target_x"] if c else None
+
+    @partner_target_x.setter
+    def partner_target_x(self, value: float | None) -> None:
+        c = self._primary_companion
+        if c is not None:
+            c["target_x"] = value
+
+    @property
+    def partner_target_y(self) -> float | None:
+        c = self._primary_companion
+        return c["target_y"] if c else None
+
+    @partner_target_y.setter
+    def partner_target_y(self, value: float | None) -> None:
+        c = self._primary_companion
+        if c is not None:
+            c["target_y"] = value
+
+    @property
+    def partner_speed(self) -> float:
+        c = self._primary_companion
+        return float(c["speed"]) if c else 245.0
+
+    @partner_speed.setter
+    def partner_speed(self, value: float) -> None:
+        c = self._primary_companion
+        if c is not None:
+            c["speed"] = float(value)
+
+    @property
+    def partner_move_dir(self) -> str:
+        c = self._primary_companion
+        return c["move_dir"] if c else "down"
+
+    @partner_move_dir.setter
+    def partner_move_dir(self, value: str) -> None:
+        c = self._primary_companion
+        if c is not None:
+            c["move_dir"] = value
+
+    @property
+    def partner_is_moving(self) -> bool:
+        c = self._primary_companion
+        return bool(c["is_moving"]) if c else False
+
+    @partner_is_moving.setter
+    def partner_is_moving(self, value: bool) -> None:
+        c = self._primary_companion
+        if c is not None:
+            c["is_moving"] = bool(value)
+
+    @property
+    def partner_override_anim(self) -> str:
+        c = self._primary_companion
+        return c["override_anim"] if c else ""
+
+    @partner_override_anim.setter
+    def partner_override_anim(self, value: str) -> None:
+        c = self._primary_companion
+        if c is not None:
+            c["override_anim"] = value
+
+    def companion_by_id(self, character_id: str) -> dict[str, Any] | None:
+        """Look up a live companion state by character id."""
+        for c in self.companions:
+            if c["id"] == character_id:
+                return c
+        return None
+
+    def hotspot_character(self, hs: dict[str, Any]) -> dict[str, Any] | None:
+        """The character a hotspot points at, if any."""
+        char_id = str(hs.get("character_id") or "").strip()
+        if char_id:
+            return self.character_registry.get(char_id)
+        return None
+
+    def hotspot_character_sprite(self, hs: dict[str, Any]) -> str:
+        """The sprite id to draw for a hotspot (character first, then raw)."""
+        char = self.hotspot_character(hs)
+        if char and char.get("sprite"):
+            return str(char["sprite"])
+        return str(hs.get("sprite_id") or "")
 
     def say(
         self,
@@ -419,19 +584,122 @@ class AdventureRuntime:
             self.inventory.append({"id": item_id, "name": item_id, "icon": ""})
 
     def set_story_flag(self, flag_name: str, allow_cutscene_trigger: bool = True):
+        """Raise a story flag and let the event system react to it.
+
+        ``allow_cutscene_trigger`` keeps its historic meaning for *legacy*
+        cutscene triggers: events migrated from old cutscene fields only fire
+        when this is True. Ordinary authored events always fire.
+        """
         if not flag_name:
             return
         self.flags.add(flag_name)
-        if allow_cutscene_trigger and not self.active_cutscene:
-            for cs in self.project.get("cutscenes", []):
-                if cs.get("trigger_type") == "on_flag_set" and cs.get("trigger_target") == flag_name:
-                    self.start_cutscene(cs["id"])
-                    break
+        self.fire_event("on_flag_set", flag_name, legacy_ok=allow_cutscene_trigger)
+
+    # ==================== EVENT SYSTEM ====================
+    def _build_event_list(self) -> list[dict[str, Any]]:
+        """Authored events, plus events migrated from legacy cutscene triggers."""
+        events = normalize_events(self.project.get("events"))
+        known = {e["id"] for e in events}
+        for legacy in migrate_cutscene_triggers(self.project.get("cutscenes")):
+            if legacy["id"] not in known:
+                events.append(legacy)
+        return sort_events(events)
+
+    def fire_event(
+        self,
+        trigger_type: str,
+        target: str = "",
+        legacy_ok: bool = True,
+        context: dict[str, Any] | None = None,
+    ) -> list[str]:
+        """Dispatch a trigger to every matching event.
+
+        Matching events queue their actions; the queue is drained by
+        :meth:`process_event_queue` so a cutscene started by one event cannot
+        be clobbered by the next one firing in the same frame.
+        """
+        fired: list[str] = []
+        for event in sort_events(self.events):
+            if not event_matches(event, trigger_type, target, self.flags):
+                continue
+            if event.get("legacy") and not legacy_ok:
+                continue
+            if event.get("once", True) and event["id"] in self.fired_events:
+                continue
+            self.fired_events.add(event["id"])
+            for action in event.get("actions", []):
+                self.event_queue.append({
+                    "event_id": event["id"],
+                    "action": action,
+                    "context": context or {},
+                })
+            fired.append(event["id"])
+
+        # Guard against a pathological event loop eating the frame.
+        if len(self.event_queue) > 64:
+            self.event_queue = self.event_queue[:64]
+        return fired
+
+    def process_event_queue(self) -> None:
+        """Run one queued event action, if the stage is clear for it."""
+        if not self.event_queue:
+            return
+        if self.active_cutscene or self.active_dialog:
+            return
+        item = self.event_queue.pop(0)
+        self.run_event_action(item.get("action") or {}, item.get("context") or {})
+
+    def run_event_action(self, action: dict[str, Any], context: dict[str, Any]) -> None:
+        """Execute a single event action."""
+        atype = str(action.get("type") or "").strip().lower()
+        value = action.get("value", "")
+
+        if atype == "set_flag":
+            self.set_story_flag(str(value))
+        elif atype == "clear_flag":
+            self.flags.discard(str(value))
+        elif atype == "play_cutscene":
+            cs_id = str(value)
+            if cs_id in self.cutscenes_by_id:
+                self.start_cutscene(cs_id, force=True)
+        elif atype == "start_dialog":
+            dlg_id = str(value)
+            if dlg_id in self.dialogs_by_id:
+                self.start_dialog(dlg_id)
+        elif atype == "give_item":
+            self.give_inventory_item(str(value))
+        elif atype == "unlock_door":
+            self.unlock_hotspot(str(value))
+        elif atype == "show_text":
+            speaker = str(action.get("speaker") or "") or self.player_name
+            color = action.get("color") or (255, 245, 150)
+            if isinstance(color, (list, tuple)) and len(color) >= 3:
+                color = (int(color[0]), int(color[1]), int(color[2]))
+            self.say(str(value), speaker=speaker, color=color)
+        elif atype == "play_sound":
+            self.play_sound(str(value))
+
+    def unlock_hotspot(self, hotspot_id: str) -> bool:
+        """Clear the lock on a hotspot anywhere in the project."""
+        if not hotspot_id:
+            return False
+        for room in self.rooms_by_id.values():
+            for hs in room.get("hotspots", []):
+                if hs.get("id") == hotspot_id:
+                    hs["locked"] = False
+                    return True
+        return False
 
     def change_room(self, room_id: str, spawn: dict | None = None, suppress_cutscene: bool = False):
         room = self.rooms_by_id.get(room_id)
         if not room:
-            return
+            # A dangling room id (a renamed or deleted room) would otherwise
+            # leave the player staring at an empty screen. Fall back to the
+            # first room instead.
+            if not self.rooms_by_id:
+                return
+            room = next(iter(self.rooms_by_id.values()))
+            room_id = str(room.get("id") or "")
         self.current_room = room
         bg_path = resolve_asset_path(room.get("background", ""))
         if bg_path.exists():
@@ -459,16 +727,33 @@ class AdventureRuntime:
                 except Exception:
                     pass
 
+        colliders = room.get("colliders") or []
         sp = spawn or room.get("player_start") or {"x": 300, "y": 560}
         self.player_x = float(sp["x"])
         self.player_y = float(sp["y"])
         self.target_x = self.player_x
         self.target_y = self.player_y
-        px, py = clamp_to_poly_bounds(self.player_x - 125.0, self.player_y + 10.0, room.get("walkable_polygon", []))
-        self.partner_x, self.partner_y = px, py
-        self.partner_target_x = None
-        self.partner_target_y = None
-        self.partner_is_moving = False
+
+        # A spawn point can end up inside geometry after the room is edited.
+        # Push the character out to the nearest free spot rather than letting
+        # them start stuck in a wall.
+        self.player_x, self.player_y = nearest_free_point(
+            self.player_x, self.player_y, self.collision_radius, colliders
+        )
+
+        # Fan the companions out behind the player so they don't stack up.
+        for idx, comp in enumerate(self.companions):
+            px, py = clamp_to_poly_bounds(
+                self.player_x - 125.0 - (idx * 55.0),
+                self.player_y + 10.0,
+                room.get("walkable_polygon", []),
+            )
+            px, py = nearest_free_point(px, py, self.collision_radius, colliders)
+            comp["x"], comp["y"] = px, py
+            comp["target_x"] = None
+            comp["target_y"] = None
+            comp["is_moving"] = False
+
         self.pending_action = None
 
         room_music = room.get("music") or room.get("ambient_sound") or ""
@@ -476,10 +761,7 @@ class AdventureRuntime:
             self.play_music(room_music)
 
         if not suppress_cutscene and not self.active_cutscene:
-            for cs in self.project.get("cutscenes", []):
-                if cs.get("trigger_type") == "on_enter_room" and cs.get("trigger_target") == room_id:
-                    if self.start_cutscene(cs["id"]):
-                        break
+            self.fire_event("on_enter_room", room_id, legacy_ok=True)
 
     # ==================== CUTSCENE ENGINE ====================
     def start_cutscene(self, cutscene_id: str, force: bool = False) -> bool:
@@ -494,7 +776,7 @@ class AdventureRuntime:
                 return False
 
         self.played_cutscenes.add(cutscene_id)
-        self.active_dialog = None
+        self.end_dialog(fire_event=False)
         self.active_cutscene = cs
         self.cutscene_step_idx = -1
         self.pending_action = None
@@ -535,9 +817,10 @@ class AdventureRuntime:
             actor = step.get("actor", "player")
             tx = float(step.get("x", self.player_x))
             ty = float(step.get("y", self.player_y))
-            if actor == "partner" and self.partner_anim is not None:
-                self.partner_target_x = tx
-                self.partner_target_y = ty
+            comp = self.resolve_actor_companion(actor)
+            if comp is not None:
+                comp["target_x"] = tx
+                comp["target_y"] = ty
             else:
                 self.target_x = tx
                 self.target_y = ty
@@ -565,8 +848,9 @@ class AdventureRuntime:
             actor = step.get("actor", "player")
             anim_name = step.get("anim", "idle_down")
             self.cutscene_step_duration = max(0.4, dur or 1.5)
-            if actor == "partner":
-                self.partner_override_anim = anim_name
+            comp = self.resolve_actor_companion(actor)
+            if comp is not None:
+                comp["override_anim"] = anim_name
             elif actor == "player":
                 self.player_override_anim = anim_name
             else:
@@ -629,10 +913,27 @@ class AdventureRuntime:
             return self.partner_name, (140, 230, 255)
         if actor == "narrator":
             return "Narrator", (210, 215, 235)
+        # Any character in the registry can speak — not just the player and
+        # the partner.
+        char = self.character_registry.get(actor)
+        if char:
+            return char.get("name", actor), character_color(char)
         for hs in self.current_room.get("hotspots", []):
             if hs.get("id") == actor:
                 return hs.get("name", actor), (160, 250, 175)
         return actor.capitalize(), (160, 250, 175)
+
+    def resolve_actor_companion(self, actor: str) -> dict[str, Any] | None:
+        """Resolve a cutscene actor token to a live companion state.
+
+        Accepts the legacy ``partner`` token, any character id, or the id of
+        a character bound to an NPC hotspot.
+        """
+        if not actor:
+            return None
+        if actor == "partner":
+            return self._primary_companion
+        return self.companion_by_id(actor)
 
     # ==================== DIALOG TREE ENGINE ====================
     def start_dialog(self, dialog_id: str) -> bool:
@@ -725,6 +1026,21 @@ class AdventureRuntime:
         else:
             self.finish_dialog_option_transition()
 
+    def end_dialog(self, fire_event: bool = True):
+        """Close the active dialog and notify the event system.
+
+        ``fire_event`` is False when a cutscene interrupts the conversation —
+        the dialog did not really "finish", it was cut short.
+        """
+        dlg = self.active_dialog or {}
+        dlg_id = str(dlg.get("id") or "")
+        self.active_dialog = None
+        self.active_dialog_node = None
+        self.pending_dialog_option = None
+        self.dialog_phase = ""
+        if fire_event and dlg_id:
+            self.fire_event("on_dialog_end", dlg_id)
+
     def finish_dialog_option_transition(self):
         opt = self.pending_dialog_option or {}
         self.pending_dialog_option = None
@@ -732,17 +1048,13 @@ class AdventureRuntime:
         # Check if option triggers a cutscene
         cs_id = opt.get("triggers_cutscene", "")
         if cs_id and cs_id in self.cutscenes_by_id:
-            self.active_dialog = None
-            self.active_dialog_node = None
-            self.dialog_phase = ""
+            self.end_dialog()
             self.start_cutscene(cs_id, force=True)
             return
 
         next_id = opt.get("next_node", "__exit__")
         if not next_id or next_id == "__exit__":
-            self.active_dialog = None
-            self.active_dialog_node = None
-            self.dialog_phase = ""
+            self.end_dialog()
             self.speech_text = ""
             self.speech_timer = 0.0
             return
@@ -756,9 +1068,7 @@ class AdventureRuntime:
         if target_node:
             self.enter_dialog_node(target_node)
         else:
-            self.active_dialog = None
-            self.active_dialog_node = None
-            self.dialog_phase = ""
+            self.end_dialog()
 
     # ==================== HOTSPOTS & INTERACTION ====================
     def get_hovered_hotspot(self, mx: int, my: int) -> dict | None:
@@ -815,6 +1125,10 @@ class AdventureRuntime:
 
         # 2. Check standard verbs
         hs_type = hs.get("type", "prop")
+
+        # Notify the event system that this hotspot was interacted with.
+        self.fire_event("on_hotspot_use", str(hs.get("id") or ""), context={"verb": verb})
+
         if verb == "Look at":
             self.say(hs.get("look_text") or f"It's {hs.get('name', 'something interesting')}.", speaker=self.player_name)
         elif verb == "Pick up":
@@ -837,6 +1151,7 @@ class AdventureRuntime:
                     elif hs.get("pickup_sound"):
                         self.play_sound(hs["pickup_sound"])
                     self.say(hs.get("pickup_text") or f"Picked up {hs.get('name')}.", speaker=self.player_name)
+                self.fire_event("on_item_pickup", str(item_id or hs.get("id") or ""))
             else:
                 self.say("I don't need to carry that around.", speaker=self.player_name)
         elif verb in ("Open", "Walk to", "Use") and hs_type == "exit":
@@ -858,13 +1173,18 @@ class AdventureRuntime:
                 else:
                     self.say("This exit leads nowhere yet.", speaker=self.player_name)
         elif verb == "Talk to":
-            if hs.get("dialog_id") and hs["dialog_id"] in self.dialogs_by_id:
-                self.start_dialog(hs["dialog_id"])
+            char = self.hotspot_character(hs)
+            dlg_id = str(hs.get("dialog_id") or "") or (str(char.get("dialog_id") or "") if char else "")
+            if dlg_id and dlg_id in self.dialogs_by_id:
+                self.start_dialog(dlg_id)
                 return
             if hs.get("cutscene_id") and hs["cutscene_id"] in self.cutscenes_by_id:
                 self.start_cutscene(hs["cutscene_id"], force=True)
                 return
-            spk = hs.get("name", "NPC") if hs_type == "npc" else self.player_name
+            if hs_type == "npc":
+                spk = str((char or {}).get("name") or hs.get("name") or "NPC")
+            else:
+                spk = self.player_name
             col = (165, 250, 180) if hs_type == "npc" else (255, 235, 130)
             self.say(hs.get("talk_text") or "No response.", speaker=spk, color=col)
         elif verb == "Use":
@@ -1019,22 +1339,97 @@ class AdventureRuntime:
                 "item": self.selected_item
             }
         elif self.is_hovering_partner(mx, my) and self.current_verb in ("Talk to", "Look at"):
+            comp = self._primary_companion
+            comp_name = str(comp["name"]) if comp else self.partner_name
+            comp_dialog = str((comp or {}).get("dialog_id") or "") or str(
+                self.project.get("partner_dialog_id") or ""
+            )
             if self.current_verb == "Look at":
-                self.say(f"It's my freelance partner, {self.partner_name}.", speaker=self.player_name)
+                self.say(f"{comp_name} is right there.", speaker=self.player_name)
             else:
-                partner_dlg = self.project.get("partner_dialog_id") or next(
-                    (d["id"] for d in self.project.get("dialogs", []) if self.partner_name.lower() in d.get("npc_name", "").lower()),
-                    ""
-                )
-                if partner_dlg and partner_dlg in self.dialogs_by_id:
-                    self.start_dialog(partner_dlg)
+                if not comp_dialog:
+                    comp_dialog = next(
+                        (
+                            d["id"] for d in self.project.get("dialogs", [])
+                            if comp_name.lower() in (d.get("npc_name") or "").lower()
+                        ),
+                        "",
+                    )
+                if comp_dialog and comp_dialog in self.dialogs_by_id:
+                    self.start_dialog(comp_dialog)
                 else:
-                    self.say("You crack me up, little buddy.", speaker=self.partner_name, color=(140, 230, 255))
+                    self.say(
+                        f"{comp_name} has nothing to say right now.",
+                        speaker=comp_name,
+                        color=(140, 230, 255),
+                    )
         else:
             poly = self.current_room.get("walkable_polygon", [])
             wx, wy = clamp_to_poly_bounds(float(mx), float(my), poly)
             self.target_x, self.target_y = wx, wy
             self.pending_action = None
+
+    def _move_companion(
+        self, comp: dict[str, Any], dt: float, colliders: list
+    ) -> tuple[float, float]:
+        """Advance one companion by a frame. Returns the new ``(x, y)``.
+
+        Handles both a scripted move (a cutscene "walk" step) and the normal
+        follower behaviour, and respects the room's collision geometry.
+        """
+        x, y = float(comp["x"]), float(comp["y"])
+        poly = self.current_room.get("walkable_polygon", [])
+        tx, ty = comp.get("target_x"), comp.get("target_y")
+
+        if tx is not None and ty is not None:
+            cdx, cdy = tx - x, ty - y
+            cdist = math.hypot(cdx, cdy)
+            if cdist > 4.0:
+                comp["is_moving"] = True
+                cstep = min(cdist, float(comp["speed"]) * dt)
+                desired_x, desired_y = x + (cdx / cdist) * cstep, y + (cdy / cdist) * cstep
+                desired_x, desired_y = clamp_to_poly_bounds(desired_x, desired_y, poly)
+                nx, ny = resolve_movement(
+                    desired_x, desired_y, x, y, self.collision_radius, colliders
+                )
+                if abs(cdx) >= abs(cdy) * 0.75:
+                    comp["move_dir"] = "left" if cdx < 0 else "right"
+                    comp["facing_left"] = cdx < 0
+                else:
+                    comp["move_dir"] = "up" if cdy < 0 else "down"
+                return nx, ny
+            comp["is_moving"] = False
+            return float(tx), float(ty)
+
+        if self.active_cutscene:
+            comp["is_moving"] = False
+            return x, y
+
+        # Follower AI — trail the player at a fixed distance.
+        cdx, cdy = self.player_x - x, self.player_y - y
+        cdist = math.hypot(cdx, cdy)
+        base = float(comp.get("follow_distance", 130.0))
+        follow_start = base + 10.0
+        follow_stop = max(20.0, base - 10.0)
+        threshold = follow_stop if comp["is_moving"] else follow_start
+
+        if cdist > threshold and cdist > 0:
+            comp["is_moving"] = True
+            cstep = min(cdist - follow_stop + 2.0, float(comp["speed"]) * dt)
+            desired_x, desired_y = x + (cdx / cdist) * cstep, y + (cdy / cdist) * cstep
+            desired_x, desired_y = clamp_to_poly_bounds(desired_x, desired_y, poly)
+            nx, ny = resolve_movement(
+                desired_x, desired_y, x, y, self.collision_radius, colliders
+            )
+            if abs(cdx) >= abs(cdy) * 0.75:
+                comp["move_dir"] = "left" if cdx < 0 else "right"
+                comp["facing_left"] = cdx < 0
+            else:
+                comp["move_dir"] = "up" if cdy < 0 else "down"
+            return nx, ny
+
+        comp["is_moving"] = False
+        return x, y
 
     def update(self, dt: float):
         self.anim_timer += dt
@@ -1050,67 +1445,62 @@ class AdventureRuntime:
                     elif self.dialog_phase == "reply_speaking":
                         self.finish_dialog_option_transition()
 
-        # Player movement update
+        # Player movement update (collision-aware — slides along walls)
+        colliders = self.current_room.get("colliders") or []
         dx = self.target_x - self.player_x
         dy = self.target_y - self.player_y
         dist = math.hypot(dx, dy)
         player_moving = dist > 4.0
+        blocked = False
+
         if player_moving:
             step = min(dist, self.player_speed * dt)
-            self.player_x += (dx / dist) * step
-            self.player_y += (dy / dist) * step
-            if abs(dx) >= abs(dy) * 0.75:
-                self.move_dir = "left" if dx < 0 else "right"
-                self.facing_left = dx < 0
-            else:
-                self.move_dir = "up" if dy < 0 else "down"
+            desired_x = self.player_x + (dx / dist) * step
+            desired_y = self.player_y + (dy / dist) * step
+            nx, ny = resolve_movement(
+                desired_x, desired_y, self.player_x, self.player_y,
+                self.collision_radius, colliders,
+            )
+            blocked = (nx == self.player_x and ny == self.player_y)
+            moved = (nx != self.player_x or ny != self.player_y)
+            self.player_x, self.player_y = nx, ny
+            if moved:
+                if abs(dx) >= abs(dy) * 0.75:
+                    self.move_dir = "left" if dx < 0 else "right"
+                    self.facing_left = dx < 0
+                else:
+                    self.move_dir = "up" if dy < 0 else "down"
         else:
-            self.player_x, self.player_y = self.target_x, self.target_y
-            if self.pending_action and not self.active_cutscene and not self.active_dialog:
-                act = self.pending_action
-                self.pending_action = None
-                self.execute_hotspot_interaction(act["hotspot"], act["verb"], act["item"])
+            # Snap onto the target — unless the target itself is inside a wall.
+            if not point_blocked(self.target_x, self.target_y, self.collision_radius, colliders):
+                self.player_x, self.player_y = self.target_x, self.target_y
 
-        # Partner movement update (scripted cutscene walk OR normal follower AI)
-        if self.partner_anim is not None:
-            if self.partner_target_x is not None and self.partner_target_y is not None:
-                pdx = self.partner_target_x - self.partner_x
-                pdy = self.partner_target_y - self.partner_y
-                pdist = math.hypot(pdx, pdy)
-                if pdist > 4.0:
-                    self.partner_is_moving = True
-                    pstep = min(pdist, self.partner_speed * dt)
-                    self.partner_x += (pdx / pdist) * pstep
-                    self.partner_y += (pdy / pdist) * pstep
-                    if abs(pdx) >= abs(pdy) * 0.75:
-                        self.partner_move_dir = "left" if pdx < 0 else "right"
-                    else:
-                        self.partner_move_dir = "up" if pdy < 0 else "down"
-                else:
-                    self.partner_x, self.partner_y = self.partner_target_x, self.partner_target_y
-                    self.partner_is_moving = False
-            elif not self.active_cutscene:
-                pdx = self.player_x - self.partner_x
-                pdy = self.player_y - self.partner_y
-                pdist = math.hypot(pdx, pdy)
-                follow_start_dist = 140.0
-                follow_stop_dist = 120.0
-                threshold = follow_stop_dist if self.partner_is_moving else follow_start_dist
-                if pdist > threshold:
-                    self.partner_is_moving = True
-                    pstep = min(pdist - follow_stop_dist + 2.0, self.partner_speed * dt)
-                    nx = self.partner_x + (pdx / pdist) * pstep
-                    ny = self.partner_y + (pdy / pdist) * pstep
-                    nx, ny = clamp_to_poly_bounds(nx, ny, self.current_room.get("walkable_polygon", []))
-                    self.partner_x, self.partner_y = nx, ny
-                    if abs(pdx) >= abs(pdy) * 0.75:
-                        self.partner_move_dir = "left" if pdx < 0 else "right"
-                    else:
-                        self.partner_move_dir = "up" if pdy < 0 else "down"
-                else:
-                    self.partner_is_moving = False
-            else:
-                self.partner_is_moving = False
+        # Arrival. Either we reached the target, or we got close enough to a
+        # blocked target that the interaction should still fire (a hotspot
+        # tucked against a wall is still usable).
+        arrived = (not player_moving) or (blocked and dist <= BLOCKED_ARRIVE_DISTANCE)
+        if arrived and self.pending_action and not self.active_cutscene and not self.active_dialog:
+            act = self.pending_action
+            self.pending_action = None
+            self.execute_hotspot_interaction(act["hotspot"], act["verb"], act["item"])
+
+        # Tell the player once when something is out of reach, so a blocked
+        # path reads as "I can't go there" rather than "the game is broken".
+        if blocked:
+            self._blocked_timer += dt
+            if self._blocked_timer > 0.75 and not self._blocked_notified:
+                self._blocked_notified = True
+                if self.pending_action:
+                    self.say("I can't get any closer.", speaker=self.player_name)
+        else:
+            self._blocked_timer = 0.0
+            self._blocked_notified = False
+
+        # Companion movement (scripted cutscene walk OR normal follower AI)
+        for comp in self.companions:
+            if comp.get("anim") is None:
+                continue
+            comp["x"], comp["y"] = self._move_companion(comp, dt, colliders)
 
         # Cutscene step progression
         if self.active_cutscene:
@@ -1123,8 +1513,9 @@ class AdventureRuntime:
                 stype = cur_step.get("type", "say")
                 if stype == "walk":
                     actor = cur_step.get("actor", "player")
-                    if actor == "partner" and self.partner_anim is not None:
-                        if not self.partner_is_moving:
+                    comp = self.resolve_actor_companion(actor)
+                    if comp is not None:
+                        if not comp["is_moving"]:
                             self.advance_cutscene_step()
                     else:
                         if not player_moving:
@@ -1136,9 +1527,10 @@ class AdventureRuntime:
         if self.active_dialog and self.dialog_phase == "choose_option":
             avail = self.get_available_dialog_options()
             if not avail:
-                self.active_dialog = None
-                self.active_dialog_node = None
-                self.dialog_phase = ""
+                self.end_dialog()
+
+        # Drain queued event actions once the stage is clear.
+        self.process_event_queue()
 
     def draw(self):
         # Camera shake offset if active
@@ -1158,14 +1550,20 @@ class AdventureRuntime:
             if hs["id"] in self.picked_up_hotspots:
                 continue
             r = hs.get("rect", {"x": 0, "y": 0, "w": 50, "h": 50})
-            if hs.get("type") == "npc" and hs.get("sprite_id") in self.sprite_anims:
-                npc_anim_obj = self.sprite_anims[hs["sprite_id"]]
-                npc_anim_name = hs.get("npc_anim") or "idle_down"
-                npc_frame = npc_anim_obj.get_frame(npc_anim_name, self.anim_timer)
-                if npc_frame:
-                    scaled_npc = pygame.transform.scale(npc_frame, (max(24, int(r["w"])), max(24, int(r["h"]))))
-                    self.screen.blit(scaled_npc, (r["x"] + ox, r["y"] + oy))
-                    continue
+            if hs.get("type") == "npc":
+                # An NPC may point at a character in the registry, or fall back
+                # to a raw sprite id.
+                npc_sprite_id = self.hotspot_character_sprite(hs)
+                if npc_sprite_id and npc_sprite_id in self.sprite_anims:
+                    npc_anim_obj = self.sprite_anims[npc_sprite_id]
+                    npc_anim_name = hs.get("npc_anim") or "idle_down"
+                    npc_frame = npc_anim_obj.get_frame(npc_anim_name, self.anim_timer)
+                    if npc_frame:
+                        scaled_npc = pygame.transform.scale(
+                            npc_frame, (max(24, int(r["w"])), max(24, int(r["h"])))
+                        )
+                        self.screen.blit(scaled_npc, (r["x"] + ox, r["y"] + oy))
+                        continue
             if hs["id"] in self.hotspot_icons:
                 self.screen.blit(self.hotspot_icons[hs["id"]], (r["x"] + ox, r["y"] + oy))
 
@@ -1181,14 +1579,20 @@ class AdventureRuntime:
             player_frame = self.player_anim.get_directional_frame(self.move_dir, is_moving, self.anim_timer)
         chars_to_draw.append((self.player_y, self.player_x, player_frame, (240, 200, 80)))
 
-        if self.partner_anim is not None:
-            if self.partner_override_anim:
-                partner_frame = self.partner_anim.get_frame(self.partner_override_anim, self.anim_timer)
+        # Every companion that follows the player, depth-sorted with them.
+        for comp in self.companions:
+            anim = comp.get("anim")
+            if anim is None:
+                continue
+            if comp.get("override_anim"):
+                comp_frame = anim.get_frame(comp["override_anim"], self.anim_timer)
             else:
-                partner_frame = self.partner_anim.get_directional_frame(
-                    self.partner_move_dir, self.partner_is_moving, self.anim_timer
+                comp_frame = anim.get_directional_frame(
+                    comp["move_dir"], comp["is_moving"], self.anim_timer
                 )
-            chars_to_draw.append((self.partner_y, self.partner_x, partner_frame, (120, 210, 255)))
+            chars_to_draw.append((
+                comp["y"], comp["x"], comp_frame, comp.get("color") or (120, 210, 255)
+            ))
 
         chars_to_draw.sort(key=lambda item: item[0])
         for cy, cx, cframe, fallback_col in chars_to_draw:

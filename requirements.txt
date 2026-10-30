@@ -36,6 +36,11 @@ pytest==8.3.2
 pytest-asyncio==0.23.7
 pytest-cov==5.0.0
 
+# Headless browser smoke test for the editor UI (tests/ui_smoke.py).
+# Needs a local Chrome/Chromium — the script points at /usr/bin/google-chrome-stable
+# by default. Not required to run the app.
+playwright==1.64.1
+
 # Code quality
 black==24.10.0
 ruff==0.6.0

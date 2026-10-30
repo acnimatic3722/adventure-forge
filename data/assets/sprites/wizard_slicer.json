@@ -1,0 +1,93 @@
+{
+  "vlm": {
+    "character_name": "wizard",
+    "animations": [
+      {
+        "name": "idle_down",
+        "fps": 8,
+        "loop": false,
+        "indices": [
+          0
+        ]
+      },
+      {
+        "name": "walk_right",
+        "fps": 8,
+        "loop": true,
+        "indices": [
+          0,
+          1
+        ]
+      }
+    ],
+    "error": "429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'message': 'You exceeded your current quota, please check your plan and billing details. For more information on this error, head to: https://ai.google.dev/gemini-api/docs/rate-limits. To monitor your current usage, head to: https://ai.dev/rate-limit. \\n* Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-2.5-flash, description: Generate content requests per day limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.\\nPlease retry in 4h52m57.610698973s.', 'status': 'RESOURCE_EXHAUSTED', 'details': [{'@type': 'type.googleapis.com/google.rpc.Help', 'links': [{'description': 'Learn more about Gemini API quotas', 'url': 'https://ai.google.dev/gemini-api/docs/rate-limits'}]}, {'@type': 'type.googleapis.com/google.rpc.QuotaFailure', 'violations': [{'description': 'Generate content requests per day limit exceeded on Free Tier. See https://ai.google.dev/gemini-api/docs/rate-limits.', 'quotaMetric': 'generativelanguage.googleapis.com/generate_content_free_tier_requests', 'quotaId': 'GenerateRequestsPerDayPerProjectPerModel-FreeTier', 'quotaDimensions': {'location': 'global', 'model': 'gemini-2.5-flash'}, 'quotaValue': '20'}]}, {'@type': 'type.googleapis.com/google.rpc.RetryInfo', 'retryDelay': '17577s'}]}}"
+  },
+  "boxes": [
+    {
+      "x": 45,
+      "y": 60,
+      "w": 38,
+      "h": 68
+    },
+    {
+      "x": 172,
+      "y": 60,
+      "w": 39,
+      "h": 68
+    },
+    {
+      "x": 295,
+      "y": 61,
+      "w": 44,
+      "h": 67
+    },
+    {
+      "x": 418,
+      "y": 61,
+      "w": 49,
+      "h": 67
+    },
+    {
+      "x": 544,
+      "y": 60,
+      "w": 51,
+      "h": 68
+    },
+    {
+      "x": 667,
+      "y": 60,
+      "w": 56,
+      "h": 68
+    },
+    {
+      "x": 803,
+      "y": 60,
+      "w": 48,
+      "h": 68
+    },
+    {
+      "x": 940,
+      "y": 60,
+      "w": 39,
+      "h": 68
+    }
+  ],
+  "char_name": "wizard",
+  "frame_urls": [
+    "/assets/sprites/wizard_frames/frame_000.png",
+    "/assets/sprites/wizard_frames/frame_001.png",
+    "/assets/sprites/wizard_frames/frame_002.png",
+    "/assets/sprites/wizard_frames/frame_003.png",
+    "/assets/sprites/wizard_frames/frame_004.png",
+    "/assets/sprites/wizard_frames/frame_005.png",
+    "/assets/sprites/wizard_frames/frame_006.png",
+    "/assets/sprites/wizard_frames/frame_007.png"
+  ],
+  "anim_roles": {
+    "walk": "walk_right",
+    "up": "walk_right",
+    "down": "walk_right",
+    "idle": "idle_down",
+    "flip_when_left": true
+  }
+}

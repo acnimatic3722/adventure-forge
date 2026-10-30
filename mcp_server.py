@@ -31,8 +31,9 @@ mcp = FastMCP(
     name="adventure-forge",
     instructions=(
         "AdventureForge is a point-and-click adventure game studio. Use these tools "
-        "to build rooms, hotspots, inventory items, puzzles, branching dialog trees, "
-        "cutscenes, sprites and assets, then launch the Pygame runtime to playtest."
+        "to build rooms, hotspots, collision geometry, inventory items, puzzles, a "
+        "character roster, branching dialog trees, cutscenes, event triggers, sprites "
+        "and assets, then launch the Pygame runtime to playtest."
     ),
 )
 
@@ -124,6 +125,38 @@ def cutscenes_resource() -> str:
     """Cinematic timeline cutscenes."""
     import json
     return json.dumps(_load_proj().get("cutscenes", []), indent=2)
+
+
+@mcp.resource(
+    "adventureforge://characters",
+    name="AdventureForge Character Roster",
+    description="Every character in the game: player, companions and NPCs, with their sprite and dialogue bindings.",
+    mime_type="application/json",
+)
+def characters_resource() -> str:
+    """The character roster."""
+    import json
+    from engine_characters import build_character_registry
+    return json.dumps(build_character_registry(_load_proj()), indent=2)
+
+
+@mcp.resource(
+    "adventureforge://events",
+    name="AdventureForge Events & Triggers",
+    description="Trigger/action events, plus the legacy cutscene triggers that have not been migrated yet.",
+    mime_type="application/json",
+)
+def events_resource() -> str:
+    """Events, triggers and actions."""
+    import json
+    from engine_events import migrate_cutscene_triggers, normalize_events
+    proj = _load_proj()
+    events = normalize_events(proj.get("events"))
+    known = {e["id"] for e in events}
+    for legacy in migrate_cutscene_triggers(proj.get("cutscenes")):
+        if legacy["id"] not in known:
+            events.append(legacy)
+    return json.dumps(events, indent=2)
 
 
 # ============================================================================

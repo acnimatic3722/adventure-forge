@@ -3,6 +3,7 @@ AdventureForge — Cutscenes & Cinematics Timeline MCP Tools
 """
 import json
 from typing import Any
+from engine_characters import build_character_registry, resolve_player_character_id
 from ._core import (
     _load_proj,
     _save_proj,
@@ -166,19 +167,34 @@ def ai_generate_cutscene(
     trigger_type: str = "manual",
     trigger_target: str = ""
 ) -> dict[str, Any]:
-    """Use Gemini LLM to choreograph a multi-step LucasArts cutscene and save it to the project."""
+    """Use Gemini LLM to choreograph a multi-step cutscene and save it to the project."""
     load_env()
     client = genai.Client()
     proj = _load_proj()
     clean_id = "".join(c for c in cutscene_id if c.isalnum() or c == "_").lower() or "cutscene_ai"
 
-    prompt = f"""You are a LucasArts cutscene director. Create a cutscene in room "{room_id}".
+    registry = build_character_registry(proj)
+    player_id = resolve_player_character_id(proj)
+    player_name = (registry.get(player_id) or {}).get("name") or "the player character"
+    companions = [
+        (cid, c.get("name", cid))
+        for cid, c in registry.items()
+        if c.get("role") == "companion"
+    ]
+    actor_tokens = ["player"] + [cid for cid, _ in companions]
+    actor_hint = ", ".join(
+        [f'"player" ({player_name})'] + [f'"{cid}" ({name})' for cid, name in companions]
+    ) or '"player" (the player character)'
+
+    prompt = f"""You are a point-and-click adventure cutscene director. Create a cutscene in room "{room_id}".
 Scene description: {scene_prompt}
+
+Available actors: {actor_hint}
 
 Allowed step objects:
 - {{"type": "fade", "effect": "fade_in" | "fade_out" | "flash_white" | "shake", "duration": 0.8}}
-- {{"type": "walk", "actor": "player" | "partner", "x": 300..950, "y": 500..640}}
-- {{"type": "say", "actor": "player" | "partner" | "narrator", "text": "Dialogue line", "duration": 3.2}}
+- {{"type": "walk", "actor": {", ".join(f'"{a}"' for a in actor_tokens)}, "x": 300..950, "y": 500..640}}
+- {{"type": "say", "actor": {", ".join(f'"{a}"' for a in actor_tokens)} | "narrator", "text": "Dialogue line", "duration": 3.2}}
 - {{"type": "wait", "duration": 1.0}}
 - {{"type": "change_room", "room_id": "{room_id}", "x": 500, "y": 560}}
 - {{"type": "set_flag", "flag": "flag_name"}}

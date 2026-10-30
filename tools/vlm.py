@@ -158,13 +158,13 @@ def vlm_auto_detect_and_place_props(room_id: str, count: int = 3, hint: str = ""
     gridded_img = create_coordinate_grid_overlay(bg_img, step_x=64, step_y=48)
 
     existing_names = [h.get("name", "") for h in room.get("hotspots", [])]
-    prompt = f"""You are a LucasArts adventure game designer and vision model inspecting the 1280x720 background image for room "{room.get('name', room_id)}".
+    prompt = f"""You are a point-and-click adventure game designer and vision model inspecting the 1280x720 background image for room "{room.get('name', room_id)}".
 An explicit coordinate grid is stamped across the image with pixel X and Y coordinates. Use these grid lines and coordinate numbers to locate props with high pixel precision.
 Existing hotspots already in the room: {", ".join(existing_names) or "none"}.
 {f"Designer hint: {hint}" if hint else ""}
 
 Visually identify {max(1, min(6, int(count)))} distinct, interesting props/objects visible in the room background image.
-For each object, return its pixel bounding box in 1280x720 coordinates (x, y, w, h) and witty Sam & Max style "look_text" and "use_text".
+For each object, return its pixel bounding box in 1280x720 coordinates (x, y, w, h) and witty "look_text" and "use_text" lines.
 
 Return ONLY valid JSON matching:
 {{
@@ -176,7 +176,7 @@ Return ONLY valid JSON matching:
       "y": 300,
       "w": 110,
       "h": 120,
-      "look_text": "Witty 1-2 sentence LucasArts observation.",
+      "look_text": "Witty 1-2 sentence observation.",
       "use_text": "Witty 1 sentence response when used."
     }}
   ]
@@ -243,7 +243,7 @@ def vlm_generate_and_place_items(
     existing_names = [h.get("name", "") for h in room.get("hotspots", [])]
     existing_items = [it.get("name", "") for it in proj.get("items", [])]
 
-    prompt = f"""You are a master LucasArts point-and-click adventure game designer (Sam & Max / Day of the Tentacle style).
+    prompt = f"""You are a master point-and-click adventure game designer.
 Inspect this 1280x720 background image with an explicit coordinate grid overlay for room "{room.get('name', room_id)}".
 
 Notice the coordinate numbers stamped across the grid:
@@ -260,7 +260,7 @@ For each item:
 2. 'surface_description': What real surface in the image you are placing it on
 3. 'rect': Exact pixel bounding box {{x, y, w, h}} where the item should sit based on the grid labels
 4. 'walk_to': Natural pixel coordinates {{x, y}} for the character to walk up and interact with it
-5. 'look_text': Witty 1-2 sentence LucasArts observation
+5. 'look_text': Witty 1-2 sentence observation
 6. 'pickup_text': Witty reaction when picked up
 7. 'sprite_prompt': Visual description to generate a 16-bit pixel art sprite for this item
 
@@ -392,7 +392,7 @@ def vlm_describe_hotspot(room_id: str, hotspot_id: str, style: str = "") -> dict
             pass
 
     style_hint = f" Match this writing style: {style}." if style else ""
-    prompt = f"""You are a classic LucasArts adventure writer. Inspect the highlighted object "{hs.get('name', hotspot_id)}" in room "{room.get('name', room_id)}".{style_hint}
+    prompt = f"""You are a classic point-and-click adventure writer. Inspect the highlighted object "{hs.get('name', hotspot_id)}" in room "{room.get('name', room_id)}".{style_hint}
 Return JSON with:
 {{
   "suggested_name": "2-4 word object name",

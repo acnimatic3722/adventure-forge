@@ -1,6 +1,6 @@
 {
   "title": "The Hotel That Forgot Tomorrow",
-  "start_room": "new_room",
+  "start_room": "reception",
   "player_sprite": "sam",
   "rooms": [
     {
@@ -13,8 +13,198 @@
         "x": 850,
         "y": 594
       },
-      "walkable_polygon": [],
-      "hotspots": []
+      "walkable_polygon": [
+        {
+          "x": 218,
+          "y": 401
+        },
+        {
+          "x": 94,
+          "y": 481
+        },
+        {
+          "x": 121,
+          "y": 551
+        },
+        {
+          "x": 154,
+          "y": 601
+        },
+        {
+          "x": 143,
+          "y": 642
+        },
+        {
+          "x": 191,
+          "y": 631
+        },
+        {
+          "x": 263,
+          "y": 647
+        },
+        {
+          "x": 343,
+          "y": 694
+        },
+        {
+          "x": 450,
+          "y": 678
+        },
+        {
+          "x": 457,
+          "y": 634
+        },
+        {
+          "x": 474,
+          "y": 635
+        },
+        {
+          "x": 469,
+          "y": 581
+        },
+        {
+          "x": 523,
+          "y": 573
+        },
+        {
+          "x": 677,
+          "y": 554
+        },
+        {
+          "x": 727,
+          "y": 465
+        },
+        {
+          "x": 535,
+          "y": 549
+        },
+        {
+          "x": 450,
+          "y": 559
+        },
+        {
+          "x": 362,
+          "y": 485
+        },
+        {
+          "x": 355,
+          "y": 425
+        },
+        {
+          "x": 362,
+          "y": 406
+        }
+      ],
+      "hotspots": [
+        {
+          "id": "door_1",
+          "name": "Door 1",
+          "type": "exit",
+          "rect": {
+            "x": 54,
+            "y": 249,
+            "w": 55,
+            "h": 192
+          },
+          "walk_to": {
+            "x": 82,
+            "y": 466
+          },
+          "look_text": "A door leading elsewhere.",
+          "use_text": "",
+          "talk_text": "",
+          "locked": false,
+          "item_id": "",
+          "pickup_text": "",
+          "sprite_id": "",
+          "npc_anim": "idle_down",
+          "target_room": "room_2",
+          "required_flag": "",
+          "locked_text": "",
+          "dialog_id": "",
+          "cutscene_id": ""
+        },
+        {
+          "id": "prop_2",
+          "name": "Prop 2",
+          "type": "prop",
+          "rect": {
+            "x": 385,
+            "y": 319,
+            "w": 60,
+            "h": 67
+          },
+          "walk_to": {
+            "x": 415,
+            "y": 411
+          },
+          "look_text": "NO TIME!!",
+          "use_text": "",
+          "talk_text": "",
+          "item_id": "",
+          "pickup_text": "",
+          "sprite_id": "",
+          "npc_anim": "idle_down",
+          "target_room": "",
+          "locked": false,
+          "required_flag": "",
+          "locked_text": "",
+          "dialog_id": "",
+          "cutscene_id": ""
+        }
+      ],
+      "colliders": []
+    },
+    {
+      "id": "room_2",
+      "name": "New Screen 2",
+      "map_x": 342,
+      "map_y": 188,
+      "background": "",
+      "player_start": {
+        "x": 300,
+        "y": 560
+      },
+      "walkable_polygon": [
+        {
+          "x": 60,
+          "y": 450
+        },
+        {
+          "x": 1220,
+          "y": 450
+        },
+        {
+          "x": 1240,
+          "y": 690
+        },
+        {
+          "x": 40,
+          "y": 690
+        }
+      ],
+      "hotspots": [
+        {
+          "id": "door_1",
+          "name": "Door 1",
+          "type": "exit",
+          "rect": {
+            "x": 65,
+            "y": 395,
+            "w": 33,
+            "h": 151
+          },
+          "walk_to": {
+            "x": 82,
+            "y": 571
+          },
+          "look_text": "A door leading elsewhere.",
+          "use_text": "",
+          "talk_text": "",
+          "target_room": "reception",
+          "locked": false
+        }
+      ]
     }
   ],
   "items": [
@@ -142,17 +332,17 @@
   "sprites": {
     "sam": {
       "id": "sam",
-      "name": "Sam (Freelance Police)",
+      "name": "wizard",
       "sheet": "/assets/sprites/sam.png",
       "frames_dir": "/assets/sprites/sam_frames",
-      "scale": 4,
+      "scale": 3,
       "metadata_file": "/assets/sprites/sam_slicer.json",
       "anim_roles": {
-        "walk": "walk",
-        "up": "walk_up",
-        "down": "walk_down",
-        "flip_when_left": true,
-        "idle": "__auto__"
+        "walk": "run_right",
+        "up": "run_right",
+        "down": "run_right",
+        "idle": "anim_3",
+        "flip_when_left": true
       }
     },
     "max": {
@@ -184,9 +374,32 @@
         "idle": "sam_idle_down_right_v1",
         "flip_when_left": true
       }
+    },
+    "wizard": {
+      "id": "wizard",
+      "name": "wizard",
+      "sheet": "/assets/sprites/wizard.png",
+      "frames_dir": "/assets/sprites/wizard_frames",
+      "scale": 3,
+      "metadata_file": "/assets/sprites/wizard_slicer.json",
+      "anim_roles": {
+        "walk": "walk_right",
+        "up": "walk_right",
+        "down": "walk_right",
+        "idle": "idle_down",
+        "flip_when_left": true
+      }
+    },
+    "blake": {
+      "id": "blake",
+      "name": "blake",
+      "sheet": "/assets/sprites/blake.png",
+      "frames_dir": "/assets/sprites/blake_frames",
+      "scale": 3,
+      "metadata_file": "/assets/sprites/blake_slicer.json"
     }
   },
-  "partner_sprite": "max",
+  "partner_sprite": "",
   "partner_dialog_id": "max_banter",
   "dialogs": [
     {
@@ -309,5 +522,7 @@
         }
       ]
     }
-  ]
+  ],
+  "events": [],
+  "characters": {}
 }

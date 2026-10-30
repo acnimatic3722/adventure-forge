@@ -386,6 +386,7 @@
       <button class="tab-btn" onclick="switchTab('sprites')">🎞️ 4. Sprite & Animation Studio</button>
       <button class="tab-btn" onclick="switchTab('assets')">✨ 5. Asset Library & BG Remover</button>
       <button class="tab-btn" onclick="switchTab('cutscenes')">🎬 6. Cutscenes & Dialog</button>
+      <button class="tab-btn" onclick="switchTab('events')">🎯 7. Events & Triggers</button>
     </div>
 
     <div class="actions">
@@ -475,7 +476,7 @@
           <select id="roomSelector" onchange="selectRoomById(this.value)"></select>
           <div style="display:flex;gap:6px;margin:6px 0;">
             <button style="flex:1;padding:5px 8px;font-size:11px;" onclick="jumpToWorldMap()">🗺️ View on World Map</button>
-            <button style="flex:1;padding:5px 8px;font-size:11px;" onclick="testCurrentRoom()">▶ Test Room</button>
+            <button style="flex:1;padding:5px 8px;font-size:11px;" onclick="playGame(true)">▶ Test Room</button>
           </div>
           <label>Upload Room Background (PNG/JPG)
             <input type="file" accept="image/*" onchange="uploadRoomBackground(this)" />
@@ -496,6 +497,10 @@
             <button id="tool-walkpoly" onclick="setRoomTool('walkpoly')">📐 Add Floor Pt</button>
             <button onclick="resetWalkPolygon()">Reset Floor</button>
           </div>
+          <div class="row" style="margin-top:4px;">
+            <button id="tool-collide" onclick="setRoomTool('collide')" title="Mark walls, furniture and other space the character must not walk through">🚧 Blocked Area</button>
+            <button onclick="clearRoomColliders()" title="Remove every blocked area in this room">Clear Walls</button>
+          </div>
           <div class="row" style="margin-top:8px;">
             <button id="btnAiGridPlaceItems" class="btn-accent" onclick="aiAutoPlaceItemsWithGrid()" style="width:100%;font-size:12px;background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;border:none;padding:8px 10px;border-radius:6px;cursor:pointer;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 2px 8px rgba(124,58,237,0.3);">
               🎯 <span>AI Generate & Place Items (Grid VLM)</span>
@@ -509,6 +514,17 @@
         <div class="card">
           <h3>Objects in Screen</h3>
           <div id="hotspotList" style="display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+
+        <div class="card">
+          <h3>
+            <span>Blocked Areas</span>
+            <span class="badge" id="colliderCountBadge">0</span>
+          </h3>
+          <p style="font-size:11px;color:var(--muted);margin-bottom:6px;">
+            Walls and furniture. Characters walk <i>around</i> these — they can't pass through.
+          </p>
+          <div id="colliderList" style="display:flex;flex-direction:column;gap:6px;"></div>
         </div>
       </div>
 
@@ -569,6 +585,9 @@
           </div>
 
           <div id="hsNpcFields" style="display:none;flex-direction:column;gap:8px;border-top:1px solid var(--border);padding-top:8px;">
+            <label>Character (from the Characters roster)
+              <select id="hsCharacterId" onchange="saveHotspotCharacterBinding()"></select>
+            </label>
             <label>Animated Character Sprite (from Sprite Studio)
               <select id="hsSpriteId" onchange="onNpcSpriteChanged()"></select>
             </label>
@@ -814,6 +833,54 @@
               <button id="btnSetPlayer" style="flex:1;padding:6px 8px;font-size:12px;" onclick="setAsPlayerSprite()">👤 Set as Player</button>
               <button id="btnSetPartner" style="flex:1;padding:6px 8px;font-size:12px;" onclick="setAsPartnerSprite()">🤝 Set as Partner</button>
               <button style="padding:6px 8px;font-size:11px;" title="Disable Partner Follower" onclick="clearPartnerSprite()">✕</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>
+            <span>Characters</span>
+            <button class="btn-gold" onclick="newCharacter()">+ New</button>
+          </h3>
+          <p style="font-size:11px;color:var(--muted);margin-bottom:6px;line-height:1.45;">
+            Everyone in the game. <b>Player</b> is who you control, <b>companions</b> follow you,
+            <b>NPCs</b> stand in rooms and talk.
+          </p>
+          <div id="characterList" style="display:flex;flex-direction:column;gap:6px;"></div>
+
+          <div id="characterEditor" style="display:none;flex-direction:column;gap:8px;margin-top:10px;border-top:1px solid var(--border);padding-top:8px;">
+            <label>Character ID
+              <input type="text" id="charId" readonly />
+            </label>
+            <label>Display Name
+              <input type="text" id="charName" oninput="saveCharacterEdits()" />
+            </label>
+            <div class="row">
+              <label>Sprite
+                <select id="charSprite" onchange="saveCharacterEdits()"></select>
+              </label>
+              <label>Role
+                <select id="charRole" onchange="saveCharacterEdits()">
+                  <option value="player">👤 Player</option>
+                  <option value="companion">🤝 Companion</option>
+                  <option value="npc">🧑 NPC</option>
+                </select>
+              </label>
+            </div>
+            <label>Default Dialogue Tree
+              <select id="charDialog" onchange="saveCharacterEdits()"></select>
+            </label>
+            <div class="row">
+              <label style="flex-direction:row;align-items:center;gap:6px;">
+                <input type="checkbox" id="charFollow" onchange="saveCharacterEdits()" style="width:auto;" /> Follows the player
+              </label>
+              <label>Colour (r,g,b)
+                <input type="text" id="charColor" placeholder="240, 200, 80" oninput="saveCharacterEdits()" />
+              </label>
+            </div>
+            <div class="row">
+              <button id="charSetPlayer" class="btn-primary" style="flex:1;" onclick="setCharacterAsPlayer()">👤 Make Player</button>
+              <button class="btn-danger" style="flex:1;" onclick="deleteCharacterDef(selectedCharacterId)">🗑 Delete</button>
             </div>
           </div>
         </div>
@@ -1152,9 +1219,9 @@
           </div>
 
           <div class="card">
-            <h3>✨ AI LucasArts Dialog Writer</h3>
+            <h3>✨ AI Dialog Writer</h3>
             <label>Describe Conversation Topic / Banter
-              <textarea id="aiDialogPrompt" placeholder="e.g. Sam and Max interrogate the nervous hotel clerk about why the lobby clock stopped at midnight and whether the floor pizza is safe to eat."></textarea>
+              <textarea id="aiDialogPrompt" placeholder="e.g. The detective interrogates the nervous hotel clerk about why the lobby clock stopped at midnight and whether the floor pizza is safe to eat."></textarea>
             </label>
             <button id="btnAiGenDialog" class="btn-gold" onclick="generateDialogWithAi()">✨ Generate Branching Dialog with AI</button>
           </div>
@@ -1268,7 +1335,7 @@
           <div class="card">
             <h3>✨ AI Cutscene Director</h3>
             <label>Describe Cutscene Action & Banter
-              <textarea id="aiCutscenePrompt" placeholder="e.g. Fade in on the reception hall. Sam and Max walk toward the desk, the room shakes, and Max makes a wisecrack about the computer."></textarea>
+              <textarea id="aiCutscenePrompt" placeholder="e.g. Fade in on the reception hall. The detective walks toward the desk, the room shakes, and makes a wisecrack about the computer."></textarea>
             </label>
             <button id="btnAiGenCutscene" class="btn-gold" onclick="generateCutsceneWithAi()">✨ Generate Cutscene Timeline with AI</button>
           </div>
@@ -1314,6 +1381,116 @@
             <canvas id="cutsceneStageCanvas" width="416" height="234" style="width:100%;border:1px solid var(--border);border-radius:6px;"></canvas>
             <div id="csStageCoordReadout" style="font-size:11px;color:var(--muted);text-align:center;">Click canvas to set coordinates.</div>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= TAB 7: EVENTS & TRIGGERS ================= -->
+    <section id="tab-events" class="tab-view">
+      <div class="sidebar" style="width:360px;">
+        <div class="card">
+          <h3>
+            <span>Events (<span id="eventCountBadge">0</span>)</span>
+            <button class="btn-gold" onclick="newEvent()">+ New</button>
+          </h3>
+          <p style="font-size:11px;color:var(--muted);margin-bottom:6px;line-height:1.45;">
+            <b>When</b> something happens, <b>do</b> something. Each event pairs a trigger with a list of actions.
+          </p>
+          <div id="eventList" style="display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+
+        <div class="card">
+          <h3>Trigger Types</h3>
+          <div style="font-size:11px;color:var(--muted);line-height:1.6;">
+            <b>on_game_start</b> — once, when the game boots<br>
+            <b>on_enter_room</b> — the player enters a room<br>
+            <b>on_flag_set</b> — a story flag is raised<br>
+            <b>on_item_pickup</b> — an item is collected<br>
+            <b>on_hotspot_use</b> — an object is used<br>
+            <b>on_dialog_end</b> — a conversation ends
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Action Types</h3>
+          <div style="font-size:11px;color:var(--muted);line-height:1.6;">
+            <b>set_flag</b> / <b>clear_flag</b> — story flags<br>
+            <b>play_cutscene</b> — run a cinematic<br>
+            <b>start_dialog</b> — open a conversation<br>
+            <b>give_item</b> — add to the inventory<br>
+            <b>unlock_door</b> — open a locked exit<br>
+            <b>show_text</b> — say a line<br>
+            <b>play_sound</b> — play a sound effect
+          </div>
+        </div>
+      </div>
+
+      <div class="canvas-wrap" style="flex-direction:column;gap:12px;overflow-y:auto;align-items:flex-start;">
+        <div class="card" style="width:600px;">
+          <h3>
+            <span>Event</span>
+            <button id="btnDeleteEvent" class="btn-danger" onclick="deleteSelectedEvent()" style="display:none;">🗑 Delete</button>
+          </h3>
+          <div class="row">
+            <label>Event ID
+              <input type="text" id="eventId" readonly />
+            </label>
+            <label>Name
+              <input type="text" id="eventName" placeholder="e.g. Arrival in the lobby" oninput="saveEventEdits()" />
+            </label>
+          </div>
+          <div class="row">
+            <label>Trigger
+              <select id="eventTriggerType" onchange="saveEventEdits()">
+                <option value="on_game_start">Game Start</option>
+                <option value="on_enter_room">Enter Room</option>
+                <option value="on_flag_set">Flag Set</option>
+                <option value="on_item_pickup">Item Picked Up</option>
+                <option value="on_hotspot_use">Hotspot Used</option>
+                <option value="on_dialog_end">Dialog Ended</option>
+              </select>
+            </label>
+            <label>Target
+              <input type="text" id="eventTriggerTarget" placeholder="room id, flag name, item id…" oninput="saveEventEdits()" />
+            </label>
+          </div>
+          <div class="row">
+            <label style="flex-direction:row;align-items:center;gap:6px;">
+              <input type="checkbox" id="eventOnce" checked style="width:auto;" onchange="saveEventEdits()" /> Fire only once
+            </label>
+            <label style="flex-direction:row;align-items:center;gap:6px;">
+              <input type="checkbox" id="eventEnabled" checked style="width:auto;" onchange="saveEventEdits()" /> Enabled
+            </label>
+            <label>Priority
+              <input type="number" id="eventPriority" value="0" oninput="saveEventEdits()" />
+            </label>
+          </div>
+          <label>Requires Flag (optional)
+            <input type="text" id="eventRequiresFlag" placeholder="only fire if this flag is set" oninput="saveEventEdits()" />
+          </label>
+          <p style="font-size:11px;color:var(--muted);margin-top:4px;">
+            Leave <b>Target</b> empty to match any room, flag, item, hotspot or dialog.
+          </p>
+        </div>
+
+        <div class="card" style="width:600px;">
+          <h3>
+            <span>Actions (<span id="eventActionCount">0</span>)</span>
+            <span style="display:flex;gap:6px;align-items:center;">
+              <select id="eventActionType" style="font-size:11px;padding:4px;">
+                <option value="set_flag">Set Flag</option>
+                <option value="clear_flag">Clear Flag</option>
+                <option value="play_cutscene">Play Cutscene</option>
+                <option value="start_dialog">Start Dialog</option>
+                <option value="give_item">Give Item</option>
+                <option value="unlock_door">Unlock Door</option>
+                <option value="show_text">Show Text</option>
+                <option value="play_sound">Play Sound</option>
+              </select>
+              <button class="btn-gold" onclick="addEventAction()">+ Add</button>
+            </span>
+          </h3>
+          <div id="eventActionList" style="display:flex;flex-direction:column;gap:6px;"></div>
         </div>
       </div>
     </section>
@@ -1550,7 +1727,7 @@
     function switchTab(tabName) {
       document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
       document.querySelectorAll(".tab-view").forEach(v => v.classList.remove("active"));
-      const idx = { map: 0, room: 1, puzzles: 2, sprites: 3, assets: 4, cutscenes: 5 }[tabName];
+      const idx = { map: 0, room: 1, puzzles: 2, sprites: 3, assets: 4, cutscenes: 5, events: 6 }[tabName];
       document.querySelectorAll(".tab-btn")[idx].classList.add("active");
       document.getElementById(`tab-${tabName}`).classList.add("active");
       if (tabName === "assets") {
@@ -1653,9 +1830,17 @@
       project = await res.json();
       if (!Array.isArray(project.dialogs)) project.dialogs = [];
       if (!Array.isArray(project.cutscenes)) project.cutscenes = [];
+      if (!Array.isArray(project.events)) project.events = [];
+      if (!project.characters || typeof project.characters !== "object") project.characters = {};
       document.getElementById("projectTitle").value = project.title || "Untitled Adventure";
-      if (project.rooms.length > 0 && !selectedRoomId) {
-        selectedRoomId = project.start_room || project.rooms[0].id;
+      if (project.rooms.length > 0) {
+        // A dangling start_room (renamed or deleted room) would leave the
+        // editor on an empty screen with no way back. Fall back to a real room.
+        const selectedStillExists = project.rooms.some(r => r.id === selectedRoomId);
+        if (!selectedRoomId || !selectedStillExists) {
+          const startMatch = project.rooms.find(r => r.id === project.start_room);
+          selectedRoomId = startMatch ? startMatch.id : project.rooms[0].id;
+        }
       }
       if (project.items.length > 0 && !selectedItemId) {
         selectedItemId = project.items[0].id;
@@ -1681,6 +1866,422 @@
       startBrowserDialogSim();
       updateUndoRedoButtons();
       updateMediaStudioTargets();
+    }
+
+    // ==================== 7. EVENTS & TRIGGERS ====================
+    let selectedEventId = null;
+
+    const EVENT_TRIGGER_TYPES = [
+      "on_game_start", "on_enter_room", "on_flag_set",
+      "on_item_pickup", "on_hotspot_use", "on_dialog_end"
+    ];
+
+    const EVENT_ACTION_TYPES = [
+      ["set_flag", "Set Flag"], ["clear_flag", "Clear Flag"],
+      ["play_cutscene", "Play Cutscene"], ["start_dialog", "Start Dialog"],
+      ["give_item", "Give Item"], ["unlock_door", "Unlock Door"],
+      ["show_text", "Show Text"], ["play_sound", "Play Sound"]
+    ];
+
+    function ensureEventList() {
+      if (!Array.isArray(project.events)) project.events = [];
+      return project.events;
+    }
+
+    function getEventDef(id) {
+      return ensureEventList().find(e => e && e.id === id) || null;
+    }
+
+    function eventValueCandidates(type) {
+      const room = getSelectedRoom();
+      switch (type) {
+        case "play_cutscene": return (project.cutscenes || []).map(c => c.id);
+        case "start_dialog": return (project.dialogs || []).map(d => d.id);
+        case "give_item": return (project.items || []).map(i => i.id);
+        case "unlock_door":
+          return (project.rooms || []).flatMap(r => (r.hotspots || [])
+            .filter(h => h.type === "exit").map(h => h.id));
+        case "on_enter_room": return (project.rooms || []).map(r => r.id);
+        default: return [];
+      }
+    }
+
+    function renderEventList() {
+      const list = document.getElementById("eventList");
+      if (!list) return;
+      const events = ensureEventList();
+      const badge = document.getElementById("eventCountBadge");
+      if (badge) badge.textContent = String(events.length);
+      list.innerHTML = "";
+      if (!events.length) {
+        list.innerHTML = `<div style="font-size:11px;color:var(--muted);padding:6px 2px;line-height:1.45;">
+          No events yet. Hit <b>+ New</b> — for example
+          &ldquo;play the intro cutscene when the player enters the lobby&rdquo;.</div>`;
+        return;
+      }
+      events.forEach(ev => {
+        const div = document.createElement("div");
+        div.className = "list-item" + (ev.id === selectedEventId ? " selected" : "");
+        const trig = (ev.trigger && ev.trigger.type) || "—";
+        const tgt = (ev.trigger && ev.trigger.target) || "";
+        const off = ev.enabled === false ? " <span class='badge'>OFF</span>" : "";
+        div.innerHTML = `<span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <b>${ev.name || ev.id}</b>
+            <span class="badge">${trig}${tgt ? " · " + tgt : ""}</span>${off}
+          </span>`;
+        div.onclick = () => { selectedEventId = ev.id; renderEventList(); populateEventEditor(); };
+        list.appendChild(div);
+      });
+    }
+
+    function newEvent() {
+      const events = ensureEventList();
+      let n = events.length + 1;
+      while (events.some(e => e && e.id === `event_${n}`)) n++;
+      const id = `event_${n}`;
+      recordState("New Event");
+      events.push({
+        id,
+        name: "New Event",
+        enabled: true,
+        once: true,
+        priority: 0,
+        requires_flag: "",
+        trigger: { type: "on_enter_room", target: "" },
+        actions: []
+      });
+      selectedEventId = id;
+      renderEventList();
+      populateEventEditor();
+    }
+
+    function deleteSelectedEvent() {
+      if (!selectedEventId) return;
+      const events = ensureEventList();
+      recordState("Delete Event");
+      project.events = events.filter(e => !(e && e.id === selectedEventId));
+      selectedEventId = null;
+      renderEventList();
+      populateEventEditor();
+    }
+
+    function populateEventEditor() {
+      const ev = selectedEventId ? getEventDef(selectedEventId) : null;
+      const fieldIds = ["eventId", "eventName", "eventTriggerType", "eventTriggerTarget",
+                        "eventOnce", "eventEnabled", "eventPriority", "eventRequiresFlag"];
+      fieldIds.forEach(i => { const el = document.getElementById(i); if (el) el.disabled = !ev; });
+      const delBtn = document.getElementById("btnDeleteEvent");
+      if (delBtn) delBtn.style.display = ev ? "" : "none";
+
+      if (!ev) {
+        const list = document.getElementById("eventActionList");
+        if (list) list.innerHTML = `<div style="font-size:11px;color:var(--muted);">Select an event to edit it.</div>`;
+        const count = document.getElementById("eventActionCount");
+        if (count) count.textContent = "0";
+        return;
+      }
+
+      document.getElementById("eventId").value = ev.id || "";
+      document.getElementById("eventName").value = ev.name || "";
+      document.getElementById("eventTriggerType").value = (ev.trigger && ev.trigger.type) || "on_enter_room";
+      document.getElementById("eventTriggerTarget").value = (ev.trigger && ev.trigger.target) || "";
+      document.getElementById("eventOnce").checked = ev.once !== false;
+      document.getElementById("eventEnabled").checked = ev.enabled !== false;
+      document.getElementById("eventPriority").value = ev.priority || 0;
+      document.getElementById("eventRequiresFlag").value = ev.requires_flag || "";
+      renderEventActions();
+    }
+
+    function saveEventEdits() {
+      const ev = selectedEventId ? getEventDef(selectedEventId) : null;
+      if (!ev) return;
+      recordStateDebounced("Edit Event");
+      ev.name = document.getElementById("eventName").value.trim() || ev.id;
+      ev.trigger = {
+        type: document.getElementById("eventTriggerType").value,
+        target: document.getElementById("eventTriggerTarget").value.trim()
+      };
+      ev.once = document.getElementById("eventOnce").checked;
+      ev.enabled = document.getElementById("eventEnabled").checked;
+      ev.priority = parseInt(document.getElementById("eventPriority").value, 10) || 0;
+      ev.requires_flag = document.getElementById("eventRequiresFlag").value.trim();
+      renderEventList();
+    }
+
+    function renderEventActions() {
+      const list = document.getElementById("eventActionList");
+      const count = document.getElementById("eventActionCount");
+      const ev = selectedEventId ? getEventDef(selectedEventId) : null;
+      if (!list) return;
+      const actions = (ev && Array.isArray(ev.actions)) ? ev.actions : [];
+      if (count) count.textContent = String(actions.length);
+      list.innerHTML = "";
+      if (!actions.length) {
+        list.innerHTML = `<div style="font-size:11px;color:var(--muted);padding:4px 2px;">
+          No actions yet — pick a type above and hit <b>+ Add</b>.</div>`;
+        return;
+      }
+      actions.forEach((a, idx) => {
+        const div = document.createElement("div");
+        div.className = "list-item";
+        const label = (EVENT_ACTION_TYPES.find(x => x[0] === a.type) || [a.type, a.type])[1];
+        const candidates = eventValueCandidates(a.type);
+        const picker = candidates.length
+          ? `<select onchange="updateEventActionValue(${idx}, this.value)" title="Pick a ${label}" style="max-width:170px;font-size:11px;padding:3px 4px;">
+              <option value="">pick…</option>
+              ${candidates.map(c => `<option value="${c}">${c}</option>`).join("")}
+            </select>`
+          : "";
+        const placeholder = a.type === "show_text" ? "the line to say"
+          : (a.type === "play_sound" ? "/assets/sounds/door.wav" : "value / id");
+        div.innerHTML = `<span style="display:flex;align-items:center;gap:6px;flex:1;min-width:0;">
+            <b style="white-space:nowrap;">${idx + 1}. ${label}</b>
+            <input type="text" value="${a.value || ""}" placeholder="${placeholder}"
+              style="flex:1;min-width:80px;font-size:11px;padding:3px 6px;"
+              onchange="updateEventActionValue(${idx}, this.value)" />
+            ${picker}
+          </span>
+          <button class="btn-danger" style="padding:2px 7px;font-size:11px;" title="Remove this action"
+            onclick="removeEventAction(${idx})">✕</button>`;
+        list.appendChild(div);
+      });
+    }
+
+    function updateEventActionValue(index, value) {
+      const ev = selectedEventId ? getEventDef(selectedEventId) : null;
+      if (!ev || !Array.isArray(ev.actions) || !ev.actions[index]) return;
+      recordStateDebounced("Edit Event Action");
+      ev.actions[index].value = value;
+    }
+
+    function addEventAction() {
+      const ev = selectedEventId ? getEventDef(selectedEventId) : null;
+      if (!ev) { showToast("Select an event first."); return; }
+      const type = document.getElementById("eventActionType").value;
+      recordState("Add Event Action");
+      if (!Array.isArray(ev.actions)) ev.actions = [];
+      ev.actions.push({ type, value: "" });
+      renderEventActions();
+    }
+
+    function removeEventAction(index) {
+      const ev = selectedEventId ? getEventDef(selectedEventId) : null;
+      if (!ev || !Array.isArray(ev.actions)) return;
+      recordState("Remove Event Action");
+      ev.actions.splice(index, 1);
+      renderEventActions();
+    }
+
+    // ==================== CHARACTERS ====================
+    let selectedCharacterId = null;
+
+    function ensureCharacterMap() {
+      if (!project.characters || typeof project.characters !== "object") project.characters = {};
+      return project.characters;
+    }
+
+    function getCharacterDef(id) {
+      return ensureCharacterMap()[id] || null;
+    }
+
+    function playerCharacterId() {
+      const chars = ensureCharacterMap();
+      if (project.player_character && chars[project.player_character]) return project.player_character;
+      return Object.keys(chars).find(cid => chars[cid].role === "player") || "";
+    }
+
+    function characterSpriteIds() {
+      return Object.keys(project.sprites || {});
+    }
+
+    function ensureCharacterForSprite(spriteId, role) {
+      const chars = ensureCharacterMap();
+      const existing = Object.keys(chars).find(cid => chars[cid].sprite === spriteId && chars[cid].role === role);
+      if (existing) return existing;
+      const id = `${role}_${spriteId}`;
+      chars[id] = {
+        name: (project.sprites[spriteId] && project.sprites[spriteId].name) || spriteId,
+        sprite: spriteId,
+        role,
+        color: role === "player" ? [240, 200, 80] : [192, 132, 252],
+        scale: 0,
+        dialog_id: "",
+        follow: role === "companion",
+        follow_distance: 130,
+        follow_speed: 245
+      };
+      return id;
+    }
+
+    function renderCharacterList() {
+      const list = document.getElementById("characterList");
+      if (!list) return;
+      const chars = ensureCharacterMap();
+      list.innerHTML = "";
+      const ids = Object.keys(chars);
+      if (!ids.length) {
+        list.innerHTML = `<div style="font-size:11px;color:var(--muted);padding:6px 2px;line-height:1.45;">
+          No characters yet. Hit <b>+ New</b> to add one.</div>`;
+        return;
+      }
+      const pcid = playerCharacterId();
+      ids.forEach(cid => {
+        const c = chars[cid];
+        const div = document.createElement("div");
+        div.className = "list-item" + (cid === selectedCharacterId ? " selected" : "");
+        const roleIcon = c.role === "player" ? "👤" : (c.role === "companion" ? "🤝" : "🧑");
+        const isPlayer = cid === pcid;
+        div.innerHTML = `<span style="display:flex;align-items:center;gap:6px;">
+            ${roleIcon} <b>${c.name || cid}</b>
+            <span class="badge">${c.role || "npc"}</span>
+            ${isPlayer ? `<span class="badge" style="background:var(--green);color:#000;">PLAYER</span>` : ""}
+          </span>`;
+        div.onclick = () => { selectedCharacterId = cid; renderCharacterList(); populateCharacterEditor(); };
+        list.appendChild(div);
+      });
+    }
+
+    function newCharacter() {
+      const chars = ensureCharacterMap();
+      let n = Object.keys(chars).length + 1;
+      while (chars[`char_${n}`]) n++;
+      const id = `char_${n}`;
+      recordState("New Character");
+      chars[id] = {
+        name: "New Character",
+        sprite: characterSpriteIds()[0] || "",
+        role: "npc",
+        color: [199, 125, 255],
+        scale: 0,
+        dialog_id: "",
+        follow: false,
+        follow_distance: 130,
+        follow_speed: 245
+      };
+      selectedCharacterId = id;
+      renderCharacterList();
+      populateCharacterEditor();
+    }
+
+    function populateCharacterEditor() {
+      const ed = document.getElementById("characterEditor");
+      if (!ed) return;
+      const c = selectedCharacterId ? getCharacterDef(selectedCharacterId) : null;
+      if (!c) { ed.style.display = "none"; return; }
+      ed.style.display = "flex";
+      document.getElementById("charId").value = selectedCharacterId;
+      document.getElementById("charName").value = c.name || "";
+
+      const spriteSel = document.getElementById("charSprite");
+      spriteSel.innerHTML = `<option value="">-- none --</option>`;
+      characterSpriteIds().forEach(sid => {
+        const o = document.createElement("option");
+        o.value = sid;
+        o.textContent = sid;
+        if (c.sprite === sid) o.selected = true;
+        spriteSel.appendChild(o);
+      });
+
+      document.getElementById("charRole").value = c.role || "npc";
+
+      const dlgSel = document.getElementById("charDialog");
+      dlgSel.innerHTML = `<option value="">-- none --</option>`;
+      (project.dialogs || []).forEach(d => {
+        const o = document.createElement("option");
+        o.value = d.id;
+        o.textContent = d.name || d.id;
+        if (c.dialog_id === d.id) o.selected = true;
+        dlgSel.appendChild(o);
+      });
+
+      document.getElementById("charFollow").checked = !!c.follow;
+      document.getElementById("charColor").value = Array.isArray(c.color) ? c.color.join(",") : (c.color || "");
+      const setBtn = document.getElementById("charSetPlayer");
+      if (setBtn) setBtn.style.display = (selectedCharacterId === playerCharacterId()) ? "none" : "";
+    }
+
+    function saveCharacterEdits() {
+      const c = selectedCharacterId ? getCharacterDef(selectedCharacterId) : null;
+      if (!c) return;
+      recordStateDebounced("Edit Character");
+      c.name = document.getElementById("charName").value.trim() || c.name;
+      c.sprite = document.getElementById("charSprite").value;
+      c.role = document.getElementById("charRole").value;
+      c.dialog_id = document.getElementById("charDialog").value;
+      c.follow = document.getElementById("charFollow").checked;
+      const colorTxt = document.getElementById("charColor").value.trim();
+      if (colorTxt) {
+        const parts = colorTxt.split(",").map(s => parseInt(s.trim(), 10));
+        if (parts.length >= 3 && parts.every(n => !isNaN(n))) c.color = parts.slice(0, 3);
+      }
+      if (c.role === "companion" && c.follow === false) {
+        // A companion with follow off simply stands still near the player.
+      }
+      renderCharacterList();
+    }
+
+    function setCharacterAsPlayer() {
+      if (!selectedCharacterId) return;
+      const c = getCharacterDef(selectedCharacterId);
+      if (!c) return;
+      recordState("Set Player Character");
+      project.player_character = selectedCharacterId;
+      if (c.sprite) project.player_sprite = c.sprite;
+      renderCharacterList();
+      populateCharacterEditor();
+      showToast(`${c.name || selectedCharacterId} is now the player character.`);
+    }
+
+    function deleteCharacterDef(id) {
+      if (!id) return;
+      recordState("Delete Character");
+      delete ensureCharacterMap()[id];
+      (project.rooms || []).forEach(r => (r.hotspots || []).forEach(h => {
+        if (h.character_id === id) delete h.character_id;
+      }));
+      if (project.player_character === id) project.player_character = "";
+      if (selectedCharacterId === id) selectedCharacterId = null;
+      renderCharacterList();
+      populateCharacterEditor();
+    }
+
+    function assignCharacterToHotspotSelect(roomId, hotspotId) {
+      const room = (project.rooms || []).find(r => r.id === roomId);
+      const hs = room && (room.hotspots || []).find(h => h.id === hotspotId);
+      if (!hs) return;
+      const chars = ensureCharacterMap();
+      const ids = Object.keys(chars);
+      const sel = document.getElementById("hsCharacterId");
+      if (!sel) return;
+      sel.innerHTML = `<option value="">-- none --</option>`;
+      ids.forEach(cid => {
+        const o = document.createElement("option");
+        o.value = cid;
+        o.textContent = `${chars[cid].name || cid} (${chars[cid].role || "npc"})`;
+        if (hs.character_id === cid) o.selected = true;
+        sel.appendChild(o);
+      });
+    }
+
+    function saveHotspotCharacterBinding() {
+      const room = getSelectedRoom();
+      const hs = (room.hotspots || []).find(h => h.id === selectedHotspotId);
+      if (!hs) return;
+      const sel = document.getElementById("hsCharacterId");
+      if (!sel) return;
+      recordStateDebounced("Bind Character");
+      const cid = sel.value;
+      if (!cid) {
+        delete hs.character_id;
+      } else {
+        hs.character_id = cid;
+        const c = getCharacterDef(cid);
+        if (c) {
+          if (c.sprite) hs.sprite_id = c.sprite;
+          if (c.dialog_id) hs.dialog_id = c.dialog_id;
+        }
+      }
+      renderRoomTab();
     }
 
     async function saveProject() {
@@ -1720,6 +2321,10 @@
       renderRoomTab();
       renderPuzzlesTab();
       renderSpriteSelector();
+      renderCharacterList();
+      populateCharacterEditor();
+      renderEventList();
+      populateEventEditor();
       renderCutscenesAndDialogsTab();
     }
 
@@ -2338,12 +2943,15 @@
       "place-npc": "🧑 <b>Place NPC:</b> Click on the room canvas to place a Character / NPC with dialogue and animation.",
       "place-exit": "🚪 <b>Place Door / Exit:</b> Click or drag on the room canvas to place a Door leading to another screen.",
       "spawn": "📍 <b>Player Start:</b> Click on the floor to set where the player spawns in this screen.",
-      "walkpoly": "📐 <b>Walkable Floor:</b> Click points around the floor perimeter to define where the player can walk."
+      "walkpoly": "📐 <b>Walkable Floor:</b> Click points around the floor perimeter to define where the player can walk.",
+      "collide": "🚧 <b>Blocked Area:</b> Drag a box over walls or furniture to mark space the character cannot walk through. Click an existing red area to select it — drag to move, or drag its corner to resize. Characters slide along walls instead of stopping dead."
     };
+
+    const ROOM_TOOLS = ["select", "place-prop", "place-pickup", "place-npc", "place-exit", "spawn", "walkpoly", "collide"];
 
     function setRoomTool(t) {
       roomTool = t;
-      ["select", "place-prop", "place-pickup", "place-npc", "place-exit", "spawn", "walkpoly"].forEach(k => {
+      ROOM_TOOLS.forEach(k => {
         const el = document.getElementById(`tool-${k}`);
         if (el) el.className = (k === t) ? "btn-primary" : "";
       });
@@ -2388,6 +2996,7 @@
       });
 
       populateHotspotInspector(room);
+      renderColliderList(room);
       drawRoomCanvas(room);
     }
 
@@ -2442,6 +3051,20 @@
           o.value = c.id;
           o.textContent = `🎬 ${c.name || c.id} (${c.id})`;
           csSel.appendChild(o);
+        });
+      }
+
+      // Character binding for NPC hotspots.
+      const charSel = document.getElementById("hsCharacterId");
+      if (charSel) {
+        const chars = ensureCharacterMap();
+        charSel.innerHTML = `<option value="">-- None (use the sprite above) --</option>`;
+        Object.keys(chars).forEach(cid => {
+          const o = document.createElement("option");
+          o.value = cid;
+          o.textContent = `${chars[cid].name || cid} (${chars[cid].role || "npc"})`;
+          if (hs && hs.character_id === cid) o.selected = true;
+          charSel.appendChild(o);
         });
       }
 
@@ -2727,6 +3350,95 @@
       drawRoomCanvas(room);
     }
 
+    // ==================== COLLISION GEOMETRY ====================
+    // Blocked areas are the negative space of a room: walls, furniture and
+    // anything the characters must not walk through.
+    let selectedColliderId = null;
+    let collideDragMode = null;   // "draw" | "move" | "resize"
+    let collideDragStart = null;
+    let collideDragCurrent = null;
+    let collideDragOffset = { x: 0, y: 0 };
+    let collideHasRecorded = false;
+
+    function getRoomColliders(room) {
+      if (!room) return [];
+      if (!Array.isArray(room.colliders)) room.colliders = [];
+      return room.colliders;
+    }
+
+    function colliderBounds(c) {
+      if (!c) return { x: 0, y: 0, w: 0, h: 0 };
+      if (c.type === "poly") {
+        const pts = c.points || [];
+        if (!pts.length) return { x: 0, y: 0, w: 0, h: 0 };
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        pts.forEach(p => {
+          minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+          minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+        });
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+      }
+      return { x: c.x || 0, y: c.y || 0, w: c.w || 0, h: c.h || 0 };
+    }
+
+    function nextColliderId(room) {
+      const taken = new Set(getRoomColliders(room).map(c => c.id));
+      let n = getRoomColliders(room).length + 1;
+      while (taken.has(`collider_${n}`)) n++;
+      return `collider_${n}`;
+    }
+
+    function clearRoomColliders() {
+      const room = getSelectedRoom();
+      if (!room) return;
+      const count = getRoomColliders(room).length;
+      if (!count) { showToast("No blocked areas in this room."); return; }
+      recordState("Clear Blocked Areas");
+      room.colliders = [];
+      selectedColliderId = null;
+      renderRoomTab();
+      showToast(`Cleared ${count} blocked area${count === 1 ? "" : "s"}.`);
+    }
+
+    function deleteCollider(id) {
+      const room = getSelectedRoom();
+      if (!room) return;
+      recordState("Delete Blocked Area");
+      room.colliders = getRoomColliders(room).filter(c => c.id !== id);
+      if (selectedColliderId === id) selectedColliderId = null;
+      renderRoomTab();
+    }
+
+    function renderColliderList(room) {
+      const list = document.getElementById("colliderList");
+      const badge = document.getElementById("colliderCountBadge");
+      if (!list) return;
+      const colliders = getRoomColliders(room);
+      if (badge) badge.textContent = String(colliders.length);
+      list.innerHTML = "";
+      if (!colliders.length) {
+        list.innerHTML = `<div style="font-size:11px;color:var(--muted);padding:6px 2px;line-height:1.45;">
+          None yet. Pick <b>🚧 Blocked Area</b> above and drag over a wall, a table or anything solid.</div>`;
+        return;
+      }
+      colliders.forEach((c, idx) => {
+        const b = colliderBounds(c);
+        const div = document.createElement("div");
+        div.className = "list-item" + (c.id === selectedColliderId ? " selected" : "");
+        const label = c.type === "poly" ? `Polygon ${idx + 1}` : `Box ${idx + 1}`;
+        div.innerHTML = `<span style="display:flex;align-items:center;gap:6px;">🚧 <b>${label}</b>
+            <small style="color:var(--muted);">${Math.round(b.w)}×${Math.round(b.h)}</small></span>
+          <button class="btn-danger" style="padding:2px 7px;font-size:11px;" title="Delete this blocked area" onclick="deleteCollider('${c.id}')">✕</button>`;
+        div.onclick = (e) => {
+          if (e.target.tagName === "BUTTON") return;
+          selectedColliderId = c.id;
+          setRoomTool("collide");
+          renderRoomTab();
+        };
+        list.appendChild(div);
+      });
+    }
+
     function drawRoomCanvas(room) {
       const canvas = document.getElementById("roomCanvas");
       const ctx = canvas.getContext("2d");
@@ -2752,7 +3464,46 @@
           ctx.stroke();
         }
 
-        // 2. Hotspots (Props, Pickups, NPCs, Doors)
+        // 2. Blocked Areas (walls, furniture) — drawn under the hotspots
+        getRoomColliders(room).forEach(c => {
+          const isSel = c.id === selectedColliderId;
+          ctx.save();
+          ctx.beginPath();
+          if (c.type === "poly") {
+            (c.points || []).forEach((pt, idx) => {
+              const px = pt.x * CANVAS_SCALE;
+              const py = pt.y * CANVAS_SCALE;
+              if (idx === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            });
+            ctx.closePath();
+          } else {
+            const b = colliderBounds(c);
+            ctx.rect(b.x * CANVAS_SCALE, b.y * CANVAS_SCALE, b.w * CANVAS_SCALE, b.h * CANVAS_SCALE);
+          }
+          ctx.fillStyle = isSel ? "rgba(255, 70, 70, 0.32)" : "rgba(255, 70, 70, 0.17)";
+          ctx.fill();
+          ctx.strokeStyle = isSel ? "#ff6b6b" : "rgba(255, 110, 110, 0.9)";
+          ctx.lineWidth = isSel ? 2.5 : 1.5;
+          ctx.setLineDash(isSel ? [] : [6, 4]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.restore();
+
+          if (isSel) {
+            const b = colliderBounds(c);
+            const bx = b.x * CANVAS_SCALE;
+            const by = b.y * CANVAS_SCALE;
+            ctx.fillStyle = "rgba(15, 18, 25, 0.88)";
+            ctx.fillRect(bx, by - 18, 108, 18);
+            ctx.fillStyle = "#ff8a8a";
+            ctx.font = "bold 11px sans-serif";
+            ctx.fillText("🚧 BLOCKED", bx + 4, by - 5);
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(bx + b.w * CANVAS_SCALE - 8, by + b.h * CANVAS_SCALE - 8, 8, 8);
+          }
+        });
+
+        // 3. Hotspots (Props, Pickups, NPCs, Doors)
         (room.hotspots || []).forEach(hs => {
           const r = hs.rect || { x: 100, y: 100, w: 80, h: 80 };
           const x = r.x * CANVAS_SCALE;
@@ -2827,7 +3578,7 @@
           ctx.fillText(`🤝 PARTNER (${project.partner_sprite})`, px - 50, py + 20);
         }
 
-        // 4. Active Drag Box when drawing a new object
+        // 5. Active Drag Box when drawing a new object
         if (isDraggingHotspot && dragMode === "draw") {
           const rx = Math.min(dragStart.x, dragCurrent.x);
           const ry = Math.min(dragStart.y, dragCurrent.y);
@@ -2836,6 +3587,19 @@
           ctx.strokeStyle = "#f5c451";
           ctx.lineWidth = 2;
           ctx.strokeRect(rx, ry, rw, rh);
+        }
+
+        // 6. Drag preview for a new blocked area
+        if (collideDragMode === "draw" && collideDragStart) {
+          const rx = Math.min(collideDragStart.x, collideDragCurrent.x) * CANVAS_SCALE;
+          const ry = Math.min(collideDragStart.y, collideDragCurrent.y) * CANVAS_SCALE;
+          const rw = Math.abs(collideDragCurrent.x - collideDragStart.x) * CANVAS_SCALE;
+          const rh = Math.abs(collideDragCurrent.y - collideDragStart.y) * CANVAS_SCALE;
+          ctx.strokeStyle = "#ff6b6b";
+          ctx.lineWidth = 2;
+          ctx.setLineDash([5, 4]);
+          ctx.strokeRect(rx, ry, rw, rh);
+          ctx.setLineDash([]);
         }
       };
 
@@ -2943,6 +3707,37 @@
           return;
         }
 
+        if (roomTool === "collide") {
+          const colliders = getRoomColliders(room);
+          for (let i = colliders.length - 1; i >= 0; i--) {
+            const c = colliders[i];
+            const b = colliderBounds(c);
+            // Bottom-right resize corner
+            if (lx >= b.x + b.w - 18 && lx <= b.x + b.w + 8 && ly >= b.y + b.h - 18 && ly <= b.y + b.h + 8) {
+              selectedColliderId = c.id;
+              collideDragMode = "resize";
+              collideHasRecorded = false;
+              dragInitialSnap = getProjectSnapshot();
+              renderRoomTab();
+              return;
+            }
+            if (lx >= b.x && lx <= b.x + b.w && ly >= b.y && ly <= b.y + b.h) {
+              selectedColliderId = c.id;
+              collideDragMode = "move";
+              collideDragOffset = { x: lx - b.x, y: ly - b.y };
+              collideHasRecorded = false;
+              dragInitialSnap = getProjectSnapshot();
+              renderRoomTab();
+              return;
+            }
+          }
+          // Empty space — start drawing a new blocked area.
+          collideDragMode = "draw";
+          collideDragStart = { x: lx, y: ly };
+          collideDragCurrent = { x: lx, y: ly };
+          return;
+        }
+
         if (roomTool === "select") {
           // Check if clicking resize handle or body of an existing object
           for (let i = room.hotspots.length - 1; i >= 0; i--) {
@@ -2982,7 +3777,6 @@
       });
 
       canvas.addEventListener("mousemove", e => {
-        if (!isDraggingHotspot) return;
         const room = getSelectedRoom();
         if (!room) return;
         const rect = canvas.getBoundingClientRect();
@@ -2990,6 +3784,42 @@
         const cy = e.clientY - rect.top;
         const lx = Math.round(cx / CANVAS_SCALE);
         const ly = Math.round(cy / CANVAS_SCALE);
+
+        // --- Blocked-area editing takes priority while it is active ---
+        if (collideDragMode) {
+          if (collideDragMode === "draw") {
+            collideDragCurrent = { x: lx, y: ly };
+            drawRoomCanvas(room);
+            return;
+          }
+          const c = getRoomColliders(room).find(x => x.id === selectedColliderId);
+          if (!c) return;
+          if (!collideHasRecorded && dragInitialSnap) {
+            undoStack.push({ ...dragInitialSnap, action: "Edit Blocked Area" });
+            if (undoStack.length > MAX_UNDO_HISTORY) undoStack.shift();
+            redoStack = [];
+            updateUndoRedoButtons();
+            collideHasRecorded = true;
+          }
+          const b = colliderBounds(c);
+          if (collideDragMode === "move") {
+            const nx = Math.max(0, Math.min(LOGICAL_W - b.w, lx - collideDragOffset.x));
+            const ny = Math.max(0, Math.min(LOGICAL_H - b.h, ly - collideDragOffset.y));
+            if (c.type === "poly") {
+              const dx = nx - b.x, dy = ny - b.y;
+              c.points = (c.points || []).map(p => ({ x: p.x + dx, y: p.y + dy }));
+            } else {
+              c.x = nx; c.y = ny;
+            }
+          } else if (collideDragMode === "resize" && c.type !== "poly") {
+            c.w = Math.max(16, lx - c.x);
+            c.h = Math.max(16, ly - c.y);
+          }
+          drawRoomCanvas(room);
+          return;
+        }
+
+        if (!isDraggingHotspot) return;
 
         if (dragMode === "move" && dragTargetHs) {
           if (!dragHasRecorded && dragInitialSnap) {
@@ -3026,6 +3856,28 @@
       });
 
       window.addEventListener("mouseup", () => {
+        if (collideDragMode) {
+          const mode = collideDragMode;
+          collideDragMode = null;
+          const room = getSelectedRoom();
+          if (mode === "draw" && room) {
+            const x = Math.min(collideDragStart.x, collideDragCurrent.x);
+            const y = Math.min(collideDragStart.y, collideDragCurrent.y);
+            const w = Math.abs(collideDragCurrent.x - collideDragStart.x);
+            const h = Math.abs(collideDragCurrent.y - collideDragStart.y);
+            if (w >= 10 && h >= 10) {
+              recordState("Add Blocked Area");
+              const id = nextColliderId(room);
+              getRoomColliders(room).push({ id, type: "rect", x, y, w, h });
+              selectedColliderId = id;
+              showToast("Blocked area added — characters can't walk through it.");
+            }
+          }
+          collideDragStart = null;
+          collideDragCurrent = null;
+          if (room) renderRoomTab();
+          return;
+        }
         if (!isDraggingHotspot) return;
         const mode = dragMode;
         isDraggingHotspot = false;
@@ -3929,21 +4781,34 @@
 
     async function setAsPlayerSprite() {
       project.player_sprite = currentSpriteId;
+      project.player_character = ensureCharacterForSprite(currentSpriteId, "player");
       renderSpriteSelector();
+      renderCharacterList();
+      populateCharacterEditor();
       await saveProject();
       showToast(`Set "${currentSpriteId}" as Player character!`);
     }
 
     async function setAsPartnerSprite() {
       project.partner_sprite = currentSpriteId;
+      const cid = ensureCharacterForSprite(currentSpriteId, "companion");
+      project.partner_character = cid;
       renderSpriteSelector();
+      renderCharacterList();
+      populateCharacterEditor();
       await saveProject();
       showToast(`Set "${currentSpriteId}" as Partner follower!`);
     }
 
     async function clearPartnerSprite() {
       project.partner_sprite = "";
+      const chars = ensureCharacterMap();
+      Object.keys(chars).forEach(cid => {
+        if (chars[cid].role === "companion") chars[cid].follow = false;
+      });
       renderSpriteSelector();
+      renderCharacterList();
+      populateCharacterEditor();
       await saveProject();
       showToast("Disabled Partner follower.");
     }
@@ -5206,8 +6071,8 @@
       const promptEl = document.getElementById("aiDialogPrompt");
       const btn = document.getElementById("btnAiGenDialog");
       const dlg = getSelectedDialog();
-      const npcName = dlg ? (dlg.npc_name || "Max") : "Max";
-      const promptText = promptEl.value.trim() || `A witty LucasArts conversation with ${npcName} investigating the mystery.`;
+      const npcName = dlg ? (dlg.npc_name || "Guide") : "Guide";
+      const promptText = promptEl.value.trim() || `A witty branching conversation with ${npcName} that moves the story forward.`;
 
       btn.disabled = true;
       btn.textContent = "⏳ Gemini writing branching dialog...";
@@ -5732,7 +6597,7 @@
       const btn = document.getElementById("btnAiGenCutscene");
       const cs = getSelectedCutscene();
       const stageRoomId = document.getElementById("csPreviewRoomSelect").value || selectedRoomId || "reception";
-      const promptText = promptEl.value.trim() || "Sam and Max walk into the room, look around, and banter about the mystery.";
+      const promptText = promptEl.value.trim() || "The characters walk into the room, look around, and banter about the situation.";
 
       btn.disabled = true;
       btn.textContent = "⏳ Gemini choreographing cutscene...";
@@ -6071,10 +6936,10 @@
       <button style="padding:3px 7px;font-size:11px;" onclick="fillMcpQuickPrompt('Search and download a creaking wooden door sound effect and assign it to door1')">🔊 AI Door Sound</button>
       <button style="padding:3px 7px;font-size:11px;" onclick="fillMcpQuickPrompt('Generate a high quality pixel art brass key icon, remove its background, and assign it to the key item')">🎨 AI Key Graphic</button>
       <button style="padding:3px 7px;font-size:11px;" onclick="fillMcpQuickPrompt('Search and download eerie hotel lobby ambient music and assign it to reception room')">🎵 AI Room Music</button>
-      <button style="padding:3px 7px;font-size:11px;" onclick="fillMcpQuickPrompt('Look at the current room background with VLM and automatically detect and place 3 interesting props with witty Sam & Max descriptions.')">👁️ VLM Auto-Detect Props</button>
+      <button style="padding:3px 7px;font-size:11px;" onclick="fillMcpQuickPrompt('Look at the current room background with VLM and automatically detect and place 3 interesting props with witty descriptions.')">👁️ VLM Auto-Detect Props</button>
       <button style="padding:3px 7px;font-size:11px;" onclick="fillMcpQuickPrompt('Create a Brass Key item placed in reception, lock the computer exit door, and make the Brass Key unlock it.')">🔑 Create Key & Lock Door</button>
-      <button style="padding:3px 7px;font-size:11px;" onclick="fillMcpQuickPrompt('Write a new witty branching dialog tree for Max about the mystery and set it as the partner dialog.')">💬 AI Partner Dialog</button>
-      <button style="padding:3px 7px;font-size:11px;" onclick="fillMcpQuickPrompt('Create a cutscene in the current room where the screen fades in, Sam walks to the center, and banters with Max.')">🎬 AI Cutscene</button>
+      <button style="padding:3px 7px;font-size:11px;" onclick="fillMcpQuickPrompt('Write a new witty branching dialog tree for the companion character about the mystery and set it as their default dialog.')">💬 AI Companion Dialog</button>
+      <button style="padding:3px 7px;font-size:11px;" onclick="fillMcpQuickPrompt('Create a cutscene in the current room where the screen fades in, the player walks to the center, and banters with their companion.')">🎬 AI Cutscene</button>
     </div>
 
     <!-- Terminal / Chat Stream -->

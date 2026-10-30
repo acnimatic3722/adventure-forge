@@ -1,8 +1,9 @@
 # AdventureForge
 
-**A point-and-click adventure game studio** — web editor, Pygame runtime, and a
-68-tool MCP server so AI agents can build the whole game: rooms, hotspots,
-inventory, puzzles, branching dialog, cutscenes, sprites, audio and art.
+**A point-and-click adventure game studio** — web editor, Pygame runtime, and an
+86-tool MCP server so AI agents can build the whole game: rooms, hotspots,
+collision geometry, a character roster, inventory, puzzles, branching dialog,
+cutscenes, event triggers, sprites, audio and art.
 
 ![python](https://img.shields.io/badge/python-3.12-blue) ![fastapi](https://img.shields.io/badge/FastAPI-0.162-009688) ![mcp](https://img.shields.io/badge/MCP-FastMCP-4.1-ff69b4)
 
@@ -10,8 +11,9 @@ inventory, puzzles, branching dialog, cutscenes, sprites, audio and art.
 
 ## What it does
 
-- **Web editor** — build rooms, place hotspots, wire doors and puzzles, edit
-  dialog trees and cutscene timelines, manage assets.
+- **Web editor** — build rooms, place hotspots, mark blocked space, wire doors
+  and puzzles, edit dialog trees and cutscene timelines, author events, manage
+  assets.
 - **Pygame runtime** — launch and playtest the game immediately from the
   editor; the engine reads the same `project.json` the editor writes.
 - **MCP server** — exposes the entire editor as tools any MCP client (Claude
@@ -22,6 +24,25 @@ inventory, puzzles, branching dialog, cutscenes, sprites, audio and art.
   SD, Sprite Fusion, or Gemini image models) and sound effects.
 - **Sprite slicer** — CV segmentation of sprite sheets into transparent frames
   plus Gemini-driven animation/direction mapping.
+
+### The engine is generic
+
+AdventureForge is **not** a Sam & Max clone with the names swapped. The
+project manifest describes the cast, the world and the logic:
+
+- **Characters** — a roster of `player`, `companion` and `npc` entries, each
+  with its own sprite, name, colour, dialogue tree and follow settings. Any
+  number of companions can trail the player.
+- **Collision** — rooms carry `colliders` (rectangles and polygons). Characters
+  cannot walk through walls or furniture; they slide along them instead of
+  stopping dead, and say so when they cannot reach a hotspot.
+- **Events** — one trigger/action system for the whole game
+  (`on_game_start`, `on_enter_room`, `on_flag_set`, `on_item_pickup`,
+  `on_hotspot_use`, `on_dialog_end`) instead of trigger fields scattered
+  across cutscenes and hotspots.
+
+Legacy projects using `player_sprite` / `partner_sprite` keep working: the
+runtime derives a roster from them automatically.
 
 ---
 
@@ -78,7 +99,7 @@ Add to your MCP client config (e.g. `claude_desktop_config.json`,
 Inspect the surface without connecting:
 
 ```bash
-python3 mcp_server.py --summary     # 68 tools by category
+python3 mcp_server.py --summary     # 86 tools by category
 ```
 
 The server is built on [FastMCP](https://github.com/jlowin/fastmcp), so tool
@@ -96,13 +117,18 @@ prompt templates.
 adventure_forge/
 ├── app.py                  # FastAPI web editor (routes + static hosting)
 ├── engine_pygame.py        # Pygame runtime — reads project.json
+├── engine_geometry.py      # Collision maths (pure, no Pygame)
+├── engine_characters.py    # Character roster model (pure)
+├── engine_events.py        # Event/trigger model (pure)
 ├── config.py               # All paths, env vars, .env loading, validation
 ├── mcp_server.py           # FastMCP server (tools, resources, prompts)
 ├── forge_cli.py            # Terminal AI agent
-├── tools/                  # The 68 tools, grouped by domain
+├── tools/                  # The 86 tools, grouped by domain
 │   ├── _core.py            # Shared internals: persistence, assets, runtime state
 │   ├── project.py          # Project + Pygame launch/stop
-│   ├── rooms.py            # Rooms and world map
+│   ├── rooms.py            # Rooms, world map and collision geometry
+│   ├── characters.py       # Character roster
+│   ├── events.py           # Event triggers and actions
 │   ├── hotspots.py         # Props, NPCs, doors, locks
 │   ├── items.py            # Inventory and usage links
 │   ├── puzzles.py          # Rules and flag dependencies
@@ -118,7 +144,7 @@ adventure_forge/
 ├── data/
 │   ├── project.json        # The game. Single source of truth.
 │   └── assets/             # backgrounds, items, sprites, sounds, music
-└── tests/                  # pytest suite (83 tests)
+└── tests/                  # pytest suite (188 tests) + a Playwright UI smoke test
 ```
 
 ### The project file
@@ -130,19 +156,42 @@ and the Pygame runtime all read and write it:
 {
   "title": "The Hotel That Forgot Tomorrow",
   "start_room": "reception",
-  "player_sprite": "sam",
-  "partner_sprite": "max",
+  "player_character": "detective",
+  "characters": {
+    "detective": {
+      "name": "Detective Vex", "sprite": "vex", "role": "player",
+      "color": [240, 200, 80], "scale": 0, "dialog_id": ""
+    },
+    "sidekick": {
+      "name": "Bibi", "sprite": "bibi", "role": "companion",
+      "follow": true, "follow_distance": 130, "follow_speed": 245
+    }
+  },
   "rooms": [{
     "id": "reception", "name": "office", "map_x": 133, "map_y": 181,
-    "background": "/assets/backgrounds/lucasarts_002.png",
+    "background": "/assets/backgrounds/lobby.png",
     "player_start": {"x": 850, "y": 594},
     "walkable_polygon": [],
+    "colliders": [
+      {"id": "desk", "type": "rect", "x": 400, "y": 380, "w": 260, "h": 60}
+    ],
     "hotspots": []
   }],
+  "events": [
+    {
+      "id": "ev_intro", "name": "Arrival", "once": true, "priority": 0,
+      "trigger": {"type": "on_enter_room", "target": "reception"},
+      "actions": [{"type": "play_cutscene", "value": "intro"}]
+    }
+  ],
   "items": [], "puzzles": [], "dialogs": [], "cutscenes": [],
   "sprites": {}
 }
 ```
+
+Legacy `player_sprite` / `partner_sprite` / `partner_dialog_id` keys are still
+honoured when `characters` is absent — the runtime derives a two-character
+roster from them.
 
 ---
 
@@ -156,6 +205,7 @@ Every path and setting is overridable through the environment (see
 | `ADVENTURE_FORGE_API_KEY` | *(unset)* | Enables `X-API-Key` auth on mutating endpoints |
 | `ADVENTURE_FORGE_SECRET_KEY` | `dev-secret-change-in-production` | Session secret |
 | `ADVENTURE_FORGE_HOST` / `_PORT` | `0.0.0.0` / `8780` | Bind address |
+| `ADVENTURE_FORGE_DATA_DIR` | `<repo>/data` | Point the whole app at a different data directory (used by the test suite) |
 | `ADVENTURE_FORGE_SPRITE_SLICER_PATH` | `<repo>/sprite_slicer` | Sprite slicer location |
 | `ADVENTURE_FORGE_JETSON_MODELS_DIR` | `/home/x/jetson-containers/data/models` | Local diffusion models |
 | `ADVENTURE_FORGE_SD_CPP_DIR` | `/home/x/jetson-containers/data/stable-diffusion.cpp` | stable-diffusion.cpp build |
@@ -175,12 +225,23 @@ fallback. Real environment variables always win over file values.
 
 ```bash
 source .venv/bin/activate
-pytest                          # 83 tests
+pytest                          # 188 tests
 pytest --cov=tools --cov=config # with coverage
 ```
 
 The suite runs against a temporary project directory — it never touches your
 real `data/project.json`.
+
+There is also a headless browser smoke test that drives the real editor UI
+(collision tool, character roster, events tab, save round-trip) against a
+throwaway data directory:
+
+```bash
+pip install playwright
+python3 tests/ui_smoke.py
+```
+
+It needs a local Chrome (`/usr/bin/google-chrome-stable` by default).
 
 ---
 
